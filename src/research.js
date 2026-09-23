@@ -66,7 +66,7 @@ async function readBlog(page, url) {
 // 관심분야 키워드로 네이버 뉴스(최근 1주)와 블로그(최근 1개월, 관련도순)를 모은다.
 export async function collectSources(interest, log) {
   const { chromium } = await playwright();
-  const browser = await chromium.launch({ headless: true, ...launchExtras });
+  const browser = await chromium.launch({ headless: true, ...launchExtras() });
   const context = await browser.newContext({ userAgent: UA, locale: 'ko-KR', viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   const q = encodeURIComponent(interest);

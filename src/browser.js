@@ -19,7 +19,7 @@ export async function getNaverContext() {
     locale: 'ko-KR',
     timezoneId: 'Asia/Seoul',
     args: ['--disable-blink-features=AutomationControlled'],
-    ...launchExtras,
+    ...launchExtras(),
   });
   context.on('close', () => {
     context = null;

@@ -54,6 +54,11 @@ app.get('/api/status', wrap(async (req, res) => {
   res.json({ setup: setupState, naver: await browser.loginStatus() });
 }));
 
+app.post('/api/setup/retry', wrap(async (req, res) => {
+  if (setupState.status !== 'ready') ensurePlaywright();
+  res.json({ setup: setupState });
+}));
+
 app.post('/api/claude/check', wrap(async (req, res) => {
   const reply = await runClaude('연결 확인이야. "연결 완료" 라고만 답해.');
   res.json({ ok: true, reply: reply.trim() });

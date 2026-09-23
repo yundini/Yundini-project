@@ -63,15 +63,28 @@ async function refreshStatus() {
     const naverClass = naverLoggedIn === true ? 'ok' : naverLoggedIn === false ? 'bad' : '';
     const naverText = naverLoggedIn === true ? '네이버 로그인됨' : naverLoggedIn === false ? '네이버 로그인 필요' : '네이버 로그인 확인';
     $chips.innerHTML = `
-      <span class="chip ${setupClass}" title="${esc(s.setup.message)}"><span class="dot"></span>${s.setup.status === 'ready' ? 'Playwright 준비됨' : esc(s.setup.message)}</span>
+      <button class="chip ${setupClass}" id="setupChip" title="${esc(s.setup.message)}"><span class="dot"></span>${s.setup.status === 'ready' ? `브라우저 준비됨${s.setup.browser && s.setup.browser !== 'Chromium' ? ` (${esc(s.setup.browser)})` : ''}` : s.setup.status === 'error' ? '브라우저 준비 실패 (탭해서 자세히)' : esc(s.setup.message)}</button>
       <button class="chip ${naverClass}" id="naverChip"><span class="dot"></span>${naverText}</button>
       <button class="chip" id="aiChip"><span class="dot"></span>AI 연결 테스트</button>`;
+    document.getElementById('setupChip').onclick = () => onSetupChip(s.setup);
     document.getElementById('naverChip').onclick = onNaverChip;
     document.getElementById('aiChip').onclick = onAiChip;
     return s;
   } catch {
     return null;
   }
+}
+
+async function onSetupChip(setup) {
+  if (setup.status === 'installing') return alert(setup.message);
+  if (setup.status === 'ready') return alert(setup.message);
+  if (!confirm(`${setup.message}\n\n다시 시도할까요?`)) return;
+  await api('/api/setup/retry', { method: 'POST' }).catch((e) => alert(e.message));
+  refreshStatus();
+  const timer = setInterval(async () => {
+    const s = await refreshStatus();
+    if (!s || s.setup.status !== 'installing') clearInterval(timer);
+  }, 3000);
 }
 
 async function onNaverChip(e) {
