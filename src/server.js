@@ -8,7 +8,8 @@ import { ROOT, DATA_DIR, UPLOAD_DIR, LOG_DIR } from './paths.js';
 import { ensurePlaywright, setupState } from './setup.js';
 import { runClaude } from './claude.js';
 import * as store from './store.js';
-import { startJob, getJob, runningJobFor } from './jobs.js';
+import { startJob, getJob, runningJobFor, anyJobRunning } from './jobs.js';
+import { checkUpdate, applyUpdate, RESTART_CODE } from './update.js';
 import * as browser from './browser.js';
 import { collectSources } from './research.js';
 import { suggestTopics, writeArticle } from './writer.js';
@@ -57,6 +58,29 @@ app.get('/api/status', wrap(async (req, res) => {
 app.post('/api/setup/retry', wrap(async (req, res) => {
   if (setupState.status !== 'ready') ensurePlaywright();
   res.json({ setup: setupState });
+}));
+
+// ---- 업데이트 ----
+let updating = false;
+
+app.get('/api/update/check', wrap(async (req, res) => res.json(await checkUpdate())));
+
+app.post('/api/update', wrap(async (req, res) => {
+  if (updating) throw new Error('이미 업데이트 중이에요.');
+  if (anyJobRunning()) throw new Error('진행 중인 작업이 끝난 뒤에 업데이트해 주세요.');
+  updating = true;
+  try {
+    const latest = await applyUpdate((m) => console.log(`[update] ${m}`));
+    res.json({ ok: true, latest });
+    // 응답을 보낸 뒤 종료하면 start.command가 새 코드로 다시 실행한다
+    setTimeout(async () => {
+      await browser.closeNaverContext();
+      process.exit(RESTART_CODE);
+    }, 500);
+  } catch (err) {
+    updating = false;
+    throw err;
+  }
 }));
 
 app.post('/api/claude/check', wrap(async (req, res) => {

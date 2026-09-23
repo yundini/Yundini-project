@@ -45,7 +45,7 @@ function renderAuth() {
     e.preventDefault();
     try {
       await api('/api/auth', { method: 'POST', body: { code: document.getElementById('code').value.trim() } });
-      route();
+      route().then(checkForUpdate);
     } catch (err) {
       document.getElementById('authMsg').textContent = err.message;
     }
@@ -65,15 +65,75 @@ async function refreshStatus() {
     $chips.innerHTML = `
       <button class="chip ${setupClass}" id="setupChip" title="${esc(s.setup.message)}"><span class="dot"></span>${s.setup.status === 'ready' ? `브라우저 준비됨${s.setup.browser && s.setup.browser !== 'Chromium' ? ` (${esc(s.setup.browser)})` : ''}` : s.setup.status === 'error' ? '브라우저 준비 실패 (탭해서 자세히)' : esc(s.setup.message)}</button>
       <button class="chip ${naverClass}" id="naverChip"><span class="dot"></span>${naverText}</button>
-      <button class="chip" id="aiChip"><span class="dot"></span>AI 연결 테스트</button>`;
+      <button class="chip" id="aiChip"><span class="dot"></span>AI 연결 테스트</button>
+      ${updateChipHtml()}`;
     document.getElementById('setupChip').onclick = () => onSetupChip(s.setup);
     document.getElementById('naverChip').onclick = onNaverChip;
     document.getElementById('aiChip').onclick = onAiChip;
+    document.getElementById('updateChip').onclick = onUpdateChip;
     return s;
   } catch {
     return null;
   }
 }
+
+// ---------------- 업데이트 ----------------
+let updateInfo = null; // { available, latest } 또는 { error }
+
+function updateChipHtml() {
+  if (!updateInfo) return `<button class="chip" id="updateChip"><span class="dot"></span>업데이트 확인</button>`;
+  if (updateInfo.error) return `<button class="chip bad" id="updateChip"><span class="dot"></span>업데이트 확인 실패</button>`;
+  if (updateInfo.available) return `<button class="chip wait" id="updateChip"><span class="dot"></span>새 버전 있음 · 업데이트</button>`;
+  return `<button class="chip ok" id="updateChip"><span class="dot"></span>최신 버전</button>`;
+}
+
+async function checkForUpdate() {
+  try {
+    updateInfo = await api('/api/update/check');
+  } catch (err) {
+    updateInfo = { error: err.message };
+  }
+  refreshStatus();
+}
+
+async function onUpdateChip() {
+  if (!updateInfo || !updateInfo.available) {
+    if (updateInfo?.error) alert(updateInfo.error);
+    return checkForUpdate();
+  }
+  if (!confirm(`새 버전으로 업데이트할까요?\n\n변경 내용: ${updateInfo.latest.message}\n\n글, 사진, 네이버 로그인은 그대로 유지돼요.`)) return;
+  showOverlay('새 버전을 받는 중이에요...');
+  try {
+    await api('/api/update', { method: 'POST' });
+  } catch (err) {
+    hideOverlay();
+    return alert(err.message);
+  }
+  showOverlay('업데이트 완료! 앱을 다시 시작하는 중이에요...<br><span class="hint">잠시 후 자동으로 새로고침돼요.</span>');
+  await new Promise((r) => setTimeout(r, 3000));
+  for (let i = 0; i < 60; i++) {
+    try {
+      const res = await fetch('/api/status');
+      if (res.ok || res.status === 401) return location.reload();
+    } catch {
+      /* 아직 다시 켜지는 중 */
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  showOverlay('앱이 다시 켜지지 않았어요.<br><span class="hint">Mac 터미널에서 start.command를 다시 실행해 주세요.</span>');
+}
+
+function showOverlay(html) {
+  let el = document.getElementById('overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'overlay';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<div class="card">${html}</div>`;
+}
+
+const hideOverlay = () => document.getElementById('overlay')?.remove();
 
 async function onSetupChip(setup) {
   if (setup.status === 'installing') return alert(setup.message);
@@ -495,4 +555,4 @@ async function route() {
 
 window.addEventListener('hashchange', route);
 setInterval(() => document.visibilityState === 'visible' && refreshStatus(), 15000);
-route();
+route().then(checkForUpdate);

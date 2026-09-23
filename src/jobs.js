@@ -44,3 +44,8 @@ export function runningJobFor(postId) {
   }
   return null;
 }
+
+export function anyJobRunning() {
+  for (const job of jobs.values()) if (job.status === 'running') return true;
+  return false;
+}

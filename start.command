@@ -4,6 +4,9 @@
 #  - Claude Code는 이 폴더 안에 자동으로 설치돼요 (Claude 앱은 필요 없어요).
 cd "$(dirname "$0")"
 
+# 업데이트가 실행 중에 이 파일을 바꿔도 안전하도록 전체를 한 번에 읽어서 실행한다
+{
+
 fail() {
   echo ""
   echo "❌ $1"
@@ -61,4 +64,14 @@ fi
 echo "✔ Claude 로그인 확인"
 
 # ---- 4. 실행 (실행 중에는 Mac 잠자기 방지, 창을 닫으면 해제) ----
-exec caffeinate -i npm start
+# 대시보드에서 업데이트하면 앱이 종료 코드 42로 끝나고, 여기서 새 코드로 다시 켠다
+while true; do
+  caffeinate -i node src/server.js
+  code=$?
+  [ "$code" -eq 42 ] || break
+  echo ""
+  echo "▶ 업데이트를 적용했어요. 앱을 다시 시작해요..."
+  echo ""
+done
+exit "$code"
+}
