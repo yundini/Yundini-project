@@ -194,7 +194,7 @@ async function watchJob(jobId, $log) {
     const job = await api(`/api/jobs/${jobId}`);
     if ($log) {
       $log.hidden = false;
-      $log.innerHTML = job.logs.map((l) => esc(l.msg)).join('\n') + (job.error ? `\n<span class="error">${esc(job.error)}</span>` : '');
+      $log.innerHTML = linkifyLogs(job.logs.map((l) => esc(l.msg)).join('\n') + (job.error ? `\n<span class="error">${esc(job.error)}</span>` : ''));
       $log.scrollTop = $log.scrollHeight;
     }
     if (job.status !== 'running') return job;
@@ -202,6 +202,7 @@ async function watchJob(jobId, $log) {
   }
 }
 
+const lastLogs = {}; // 글별 마지막 작업 기록 (완료 후에도 보이게)
 const linkifyLogs = (text) => text.replace(/\/api\/logs\/[\w.-]+\.png/g, (m) => `<a href="${m}" target="_blank">${m}</a>`);
 
 // ---------------- 홈 ----------------
@@ -379,13 +380,17 @@ async function renderPost(id, jobFromUrl) {
     </div>` : ''}`;
 
   const $log = document.getElementById('jobLog');
+  if (lastLogs[id]) {
+    $log.hidden = false;
+    $log.innerHTML = lastLogs[id];
+  }
   const runJob = async (promise) => {
     document.querySelectorAll('main button').forEach((b) => (b.disabled = true));
     try {
       const { jobId } = await promise;
       const job = await watchJob(jobId, $log);
+      lastLogs[id] = $log.innerHTML;
       if (job.status === 'error') {
-        $log.innerHTML = linkifyLogs($log.innerHTML);
         document.querySelectorAll('main button').forEach((b) => (b.disabled = false));
         return;
       }

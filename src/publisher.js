@@ -64,21 +64,11 @@ async function moveCursorToEnd(page, frame) {
   await pause(300);
 }
 
-// 서식 있는 HTML을 붙여넣는다. 1) 가상 붙여넣기 이벤트 2) 실제 클립보드 3) 일반 텍스트 순으로 시도.
+// 본문을 입력한다. 에디터가 실제 입력으로 인식하도록 진짜 키 입력만 쓴다.
+// 1) 실제 클립보드에 서식 HTML을 넣고 command+V  2) 안 되면 키보드로 한 줄씩 타이핑
 async function pasteSegment(page, frame, segment, log) {
   const before = await contentLength(frame);
 
-  await frame.evaluate(({ html, plain }) => {
-    const dt = new DataTransfer();
-    dt.setData('text/html', html);
-    dt.setData('text/plain', plain);
-    const target = document.activeElement || document.body;
-    target.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-  }, segment);
-  await pause(800);
-  if ((await contentLength(frame)) > before) return;
-
-  log('가상 붙여넣기가 적용되지 않아 클립보드 붙여넣기로 다시 시도해요.');
   try {
     await frame.evaluate(async ({ html, plain }) => {
       await navigator.clipboard.write([
@@ -89,14 +79,21 @@ async function pasteSegment(page, frame, segment, log) {
       ]);
     }, segment);
     await page.keyboard.press(PASTE_KEY);
-    await pause(800);
+    await pause(1200);
     if ((await contentLength(frame)) > before) return;
+    log('붙여넣기가 적용되지 않아 키보드 입력으로 바꿔요.');
   } catch (e) {
-    log(`클립보드 붙여넣기 실패: ${e.message}`);
+    log(`클립보드를 쓸 수 없어 키보드 입력으로 바꿔요. (${e.message.split('\n')[0]})`);
   }
 
-  log('서식 없이 텍스트로 입력해요.');
-  await page.keyboard.insertText(segment.plain);
+  const lines = segment.plain.replace(/\n+$/, '').split('\n');
+  for (const [i, line] of lines.entries()) {
+    if (line) await page.keyboard.type(line, { delay: 5 });
+    if (i < lines.length - 1) await page.keyboard.press('Enter');
+  }
+  await page.keyboard.press('Enter');
+  await pause(500);
+  if ((await contentLength(frame)) <= before) throw new Error('본문 글자를 에디터에 입력하지 못했어요.');
 }
 
 async function uploadImage(page, frame, media) {
@@ -199,6 +196,9 @@ export async function publishToNaver(post, { mode = 'publish' } = {}, log) {
         }
       }
       await pause(1000);
+      const shot = `publish-result-${Date.now()}.png`;
+      await page.screenshot({ path: path.join(LOG_DIR, shot) }).catch(() => {});
+      log(`입력 결과 화면: /api/logs/${shot}`);
 
       if (mode === 'draft') {
         log('임시저장 중...');
