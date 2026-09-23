@@ -1,0 +1,133 @@
+:root {
+  --bg: #f6f7f5;
+  --card: #ffffff;
+  --text: #1d1f1c;
+  --muted: #6b7068;
+  --line: #e3e6e1;
+  --accent: #03a94d;
+  --accent-soft: #e5f6ec;
+  --danger: #d6453d;
+  --warn: #b7791f;
+  --radius: 14px;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151715;
+    --card: #1f221f;
+    --text: #eceeea;
+    --muted: #9aa096;
+    --line: #333833;
+    --accent: #2fcf72;
+    --accent-soft: #1d3326;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+a { color: var(--accent); }
+.topbar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px max(16px, env(safe-area-inset-left));
+  background: var(--card); border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 700; font-size: 18px; color: var(--text); text-decoration: none; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px; font-size: 14px;
+  background: var(--bg); border: 1px solid var(--line); color: var(--text); cursor: pointer;
+}
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.chip.ok .dot { background: var(--accent); }
+.chip.bad .dot { background: var(--danger); }
+.chip.wait .dot { background: var(--warn); }
+main { max-width: 920px; margin: 0 auto; padding: 20px 16px 80px; }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px; margin-bottom: 16px;
+}
+h1 { font-size: 22px; margin: 0 0 12px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.hint { color: var(--muted); font-size: 14px; margin: 6px 0; }
+label { display: block; font-weight: 600; margin: 14px 0 6px; }
+input[type=text], input[type=password], textarea {
+  width: 100%; padding: 12px 14px; font: inherit; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+}
+textarea { min-height: 90px; resize: vertical; }
+button {
+  font: inherit; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); cursor: pointer; min-height: 44px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger { color: var(--danger); }
+button.ghost { background: transparent; }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.row.wrap { flex-wrap: wrap; }
+.row > input { flex: 1; }
+.spacer { flex: 1; }
+.list { display: grid; gap: 10px; }
+.post-item {
+  display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px;
+  text-decoration: none; color: var(--text); background: var(--card);
+}
+.badge { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--bg); color: var(--muted); white-space: nowrap; }
+.badge.written, .badge.researched { background: var(--accent-soft); color: var(--accent); }
+.badge.published { background: var(--accent); color: #fff; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.media-tile { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
+.media-tile img, .media-tile video { width: 100%; height: 120px; object-fit: cover; display: block; background: #000; }
+.media-tile .body { padding: 8px; font-size: 13px; }
+.media-tile input { padding: 6px 8px; font-size: 13px; }
+.media-tile.excluded { opacity: .55; }
+.topic {
+  display: block; width: 100%; text-align: left; padding: 14px 16px; margin-bottom: 10px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--bg);
+}
+.topic strong { display: block; font-size: 17px; }
+.topic span { display: block; color: var(--muted); font-size: 14px; margin-top: 4px; }
+.log {
+  font: 13px/1.5 ui-monospace, Menlo, monospace; background: var(--bg); border-radius: 10px;
+  padding: 10px 12px; max-height: 220px; overflow: auto; white-space: pre-wrap;
+}
+.error { color: var(--danger); }
+details summary { cursor: pointer; font-weight: 600; }
+.sources li { margin-bottom: 6px; }
+
+/* 미리보기: 네이버 블로그 글과 비슷한 모양 */
+.preview { max-width: 700px; margin: 0 auto; }
+.preview .p-title { font-size: 26px; font-weight: 700; line-height: 1.4; margin: 8px 0 18px; }
+.preview h3 { font-size: 21px; margin: 32px 0 12px; }
+.preview p { margin: 0 0 16px; }
+.preview blockquote {
+  text-align: center; color: var(--accent); font-weight: 600; font-size: 18px;
+  margin: 24px 0; padding: 16px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.preview ul { list-style: none; padding: 0; margin: 0 0 16px; }
+.preview ul li::before { content: "✔ "; color: var(--accent); }
+.preview figure { margin: 20px 0; text-align: center; }
+.preview figure img, .preview figure video { max-width: 100%; border-radius: 8px; }
+.preview figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.preview hr { border: 0; text-align: center; margin: 24px 0; }
+.preview hr::after { content: "· · ·"; color: var(--muted); }
+.tags { color: var(--accent); font-size: 14px; }
+.edit-block { margin-bottom: 12px; }
+.edit-block .kind { font-size: 12px; color: var(--muted); }
+
+dialog {
+  width: min(960px, 96vw); max-height: 94vh; border: 0; border-radius: var(--radius);
+  padding: 16px; background: var(--card); color: var(--text);
+}
+dialog::backdrop { background: rgba(0,0,0,.45); }
+.dialog-head { display: flex; justify-content: space-between; align-items: center; }
+.screen-wrap { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.screen-wrap img { width: 100%; display: block; cursor: crosshair; touch-action: manipulation; }

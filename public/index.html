@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>블로그 오토파일럿</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/" class="brand">블로그 오토파일럿</a>
+    <div class="chips" id="chips"></div>
+  </header>
+  <main id="app"></main>
+
+  <dialog id="loginDialog">
+    <div class="dialog-head">
+      <strong>네이버 로그인</strong>
+      <button class="ghost" data-close>닫기</button>
+    </div>
+    <p class="hint">아래 화면은 Mac에서 열린 브라우저예요. 화면을 탭해서 입력칸을 고른 뒤, 아래 입력창으로 글자를 보내세요. QR 로그인도 쓸 수 있어요.</p>
+    <div class="screen-wrap"><img id="loginScreen" alt="로그인 화면" /></div>
+    <form id="loginTypeForm" class="row">
+      <input id="loginText" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="선택한 칸에 입력할 내용" />
+      <button type="submit">입력</button>
+    </form>
+    <div class="row wrap">
+      <button class="ghost" data-key="Tab">Tab</button>
+      <button class="ghost" data-key="Backspace">⌫ 지우기</button>
+      <button class="ghost" data-key="Enter">Enter</button>
+      <span class="spacer"></span>
+      <button id="loginFinish" class="primary">로그인 완료 확인</button>
+    </div>
+    <p id="loginMsg" class="hint"></p>
+  </dialog>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
