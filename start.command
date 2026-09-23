@@ -63,7 +63,17 @@ if ! claude_ok; then
 fi
 echo "✔ Claude 로그인 확인"
 
-# ---- 4. 실행 (실행 중에는 Mac 잠자기 방지, 창을 닫으면 해제) ----
+# ---- 4. 예전에 켜 둔 이 앱이 남아 있으면 끈다 (포트 충돌 방지) ----
+PORT="${PORT:-3000}"
+for pid in $(lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null); do
+  if ps -o command= -p "$pid" | grep -q "src/server.js"; then
+    echo "▶ 이미 켜져 있던 앱을 끄고 새로 시작해요."
+    kill "$pid" 2>/dev/null
+    sleep 1
+  fi
+done
+
+# ---- 5. 실행 (실행 중에는 Mac 잠자기 방지, 창을 닫으면 해제) ----
 # 대시보드에서 업데이트하면 앱이 종료 코드 42로 끝나고, 여기서 새 코드로 다시 켠다
 while true; do
   caffeinate -i node src/server.js

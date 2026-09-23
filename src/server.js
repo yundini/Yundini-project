@@ -269,7 +269,7 @@ function lanAddresses() {
     .map((i) => i.address);
 }
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   const urls = [`http://localhost:${PORT}`, ...lanAddresses().map((ip) => `http://${ip}:${PORT}`)];
   console.log('\n==============================================');
   console.log(' 네이버 블로그 오토파일럿 대시보드');
@@ -278,4 +278,13 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(' (아이패드는 같은 와이파이에서 위 주소 중 192.168... 로 접속)');
   console.log('==============================================\n');
   ensurePlaywright();
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n❌ ${PORT}번 포트를 다른 프로그램이 쓰고 있어요. 이미 켜 둔 앱이 있는지 확인해 주세요.`);
+    console.error(`   끄려면 터미널에 입력: lsof -ti tcp:${PORT} | xargs kill\n`);
+    process.exit(1);
+  }
+  throw err;
 });
