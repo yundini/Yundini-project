@@ -20,20 +20,34 @@ function readVersion() {
   }
 }
 
-async function github(pathname) {
-  const res = await fetch(`https://api.github.com/repos/${REPO}${pathname}`, {
-    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'blog-autopilot' },
+const NOT_PUBLIC = '저장소를 찾을 수 없어요. GitHub 저장소가 공개(Public)인지 확인해 주세요.';
+
+// git 서버의 브랜치 정보로 최신 커밋을 확인한다 (GitHub API와 달리 시간당 요청 제한이 없다).
+async function latestCommit() {
+  const res = await fetch(`https://github.com/${REPO}.git/info/refs?service=git-upload-pack`, {
+    headers: { 'User-Agent': 'git/2.40 blog-autopilot' },
   });
-  if (res.status === 404) throw new Error('저장소를 찾을 수 없어요. GitHub 저장소가 공개(Public)인지 확인해 주세요.');
+  if (res.status === 401 || res.status === 404) throw new Error(NOT_PUBLIC);
   if (!res.ok) throw new Error(`GitHub 응답 오류 (${res.status})`);
-  return res.json();
+  const refs = await res.text();
+  const branch = process.env.UPDATE_BRANCH || refs.match(/symref=HEAD:refs\/heads\/([^\s\0]+)/)?.[1];
+  const esc = (branch || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sha = branch && refs.match(new RegExp(`([0-9a-f]{40}) refs/heads/${esc}(?:\\s|$)`))?.[1];
+  if (!sha) throw new Error('최신 버전 정보를 읽지 못했어요.');
+  return { branch, sha, message: await commitTitle(branch, sha) };
 }
 
-async function latestCommit() {
-  const repo = await github('');
-  const branch = process.env.UPDATE_BRANCH || repo.default_branch;
-  const commit = await github(`/commits/${encodeURIComponent(branch)}`);
-  return { branch, sha: commit.sha, message: commit.commit.message.split('\n')[0], date: commit.commit.committer.date };
+// 커밋 제목(변경 내용)은 커밋 피드에서 가져온다. 실패해도 업데이트에는 지장 없다.
+async function commitTitle(branch, sha) {
+  try {
+    const res = await fetch(`https://github.com/${REPO}/commits/${branch}.atom`);
+    const xml = await res.text();
+    const title = xml.match(/<entry>[\s\S]*?<title>\s*([\s\S]*?)\s*<\/title>/)?.[1];
+    if (title) return title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  } catch {
+    /* 무시 */
+  }
+  return `버전 ${sha.slice(0, 7)}`;
 }
 
 export async function checkUpdate() {
@@ -79,7 +93,7 @@ export async function applyUpdate(log = console.log) {
   try {
     log(`새 버전 받는 중... (${latest.message})`);
     const res = await fetch(`https://codeload.github.com/${REPO}/tar.gz/${latest.sha}`);
-    if (!res.ok) throw new Error(`다운로드 실패 (${res.status}). 저장소가 공개(Public)인지 확인해 주세요.`);
+    if (!res.ok) throw new Error(res.status === 404 ? NOT_PUBLIC : `다운로드 실패 (${res.status})`);
     const archive = path.join(tmp, 'update.tar.gz');
     fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
 
