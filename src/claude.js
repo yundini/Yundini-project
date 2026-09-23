@@ -1,7 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { DATA_DIR } from './paths.js';
+import { ROOT, DATA_DIR } from './paths.js';
 
-const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
+// 프로젝트 안에 설치된 Claude Code(npm 패키지)를 우선 사용하고, 없으면 PATH의 claude를 쓴다.
+const LOCAL_CLAUDE = path.join(ROOT, 'node_modules', '.bin', 'claude');
+const CLAUDE_BIN = process.env.CLAUDE_BIN || (fs.existsSync(LOCAL_CLAUDE) ? LOCAL_CLAUDE : 'claude');
 const TIMEOUT_MS = 15 * 60 * 1000;
 
 // `claude -p`(Claude Code 헤드리스 모드)로 AI를 호출한다.
@@ -30,7 +34,7 @@ export function runClaude(prompt, { allowedTools = [], addDirs = [], model = pro
       clearTimeout(timer);
       reject(
         err.code === 'ENOENT'
-          ? new Error('claude 명령을 찾을 수 없어요. Mac에 Claude Code를 설치하고 로그인해 주세요.')
+          ? new Error('Claude Code를 찾을 수 없어요. start.command를 다시 실행해 주세요.')
           : err,
       );
     });

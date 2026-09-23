@@ -19,17 +19,18 @@
 
 Mac은 프로그램이 실제로 돌아가는 **본체**, 아이패드는 **리모컨**이에요. Mac에서는 아래만 하면 돼요.
 
-1. 이 저장소를 Mac에 받기 (GitHub에서 **Code → Download ZIP** 후 압축 풀기, 또는 `git clone`)
-2. 폴더 안의 **`start.command` 더블클릭**
+1. **Node.js 설치**: https://nodejs.org/ko/download 에서 **LTS 버전 macOS 설치 프로그램(.pkg)** 을 받아 설치 (22 이상)
+2. 이 저장소를 Mac에 받기 (GitHub에서 **Code → Download ZIP** 후 압축 풀기, 또는 `git clone`)
+3. 폴더 안의 **`start.command` 더블클릭**
    - 처음 열 때 "확인되지 않은 개발자" 경고가 나오면: 파일을 **우클릭 → 열기**
 
 `start.command`가 알아서 해주는 것:
 
 | 단계 | 내용 |
 | --- | --- |
-| Node.js | 없으면 이 폴더 안(`.runtime/`)에 받아서 사용 (Mac 전체에 설치하지 않음, 체크섬 검증) |
-| Claude Code | 없으면 설치, 로그인이 안 되어 있으면 로그인 화면을 띄움 → 구독 계정으로 로그인 후 `/exit` |
-| 패키지 | 처음 한 번 설치 |
+| Node.js 확인 | 없거나 버전이 낮으면 설치 페이지를 열어 안내 |
+| 패키지 설치 | **Claude Code**(npm 패키지)와 Playwright를 이 폴더 안에 설치 — Claude 앱은 필요 없어요 |
+| Claude 로그인 | 로그인이 안 되어 있으면 Claude Code를 열어 줌 → **구독 계정**으로 로그인 후 `/exit` |
 | Playwright | 앱이 켜질 때 Chromium까지 자동 설치 |
 | 잠자기 방지 | 실행 중에는 Mac이 잠들지 않음 (터미널 창을 닫으면 해제) |
 
@@ -41,7 +42,7 @@ Mac은 프로그램이 실제로 돌아가는 **본체**, 아이패드는 **리�
  접속 코드: 123456
 ```
 
-> 이미 Node.js가 설치되어 있다면 그걸 그대로 써요. 터미널에서 `npm install && npm start`로 직접 실행해도 돼요.
+> 터미널에서 `npm install && npm start`로 직접 실행해도 돼요.
 > `ANTHROPIC_API_KEY`가 설정되어 있어도 이 앱은 그걸 쓰지 않고 구독 로그인을 사용해요.
 
 ## 아이패드에서 쓰기
@@ -63,7 +64,7 @@ Mac은 프로그램이 실제로 돌아가는 **본체**, 아이패드는 **리�
 | `PORT` | 대시보드 포트 (기본 3000) |
 | `DASHBOARD_CODE` | 접속 코드 직접 지정 (기본은 자동 생성, `data/access-code.txt`) |
 | `CLAUDE_MODEL` | `claude -p`에 쓸 모델 (기본은 Claude Code 기본값) |
-| `CLAUDE_BIN` | `claude` 명령 경로가 다를 때 |
+| `CLAUDE_BIN` | 다른 위치의 `claude`를 쓰고 싶을 때 (기본은 프로젝트 안에 설치된 것) |
 
 ## 알아둘 점
 

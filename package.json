@@ -8,9 +8,10 @@
     "start": "node src/server.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.280",
     "express": "^4.21.2",
     "multer": "^2.0.2",
     "playwright": "^1.55.0"
