@@ -15,37 +15,34 @@
 4. **미리보기**: 제목·본문·태그 직접 수정, 또는 "더 짧게" 같은 수정 요청으로 다시 쓰기
 5. **발행**: Mac에서 브라우저가 열려 네이버 에디터에 글·사진·동영상·서식을 입력하고 발행 (또는 임시저장만)
 
-## Mac 준비 (처음 한 번)
+## Mac 준비 & 실행
 
-1. **Node.js** 설치: https://nodejs.org 에서 LTS 버전
-2. **Claude Code** 설치 후 구독 계정으로 로그인
-   ```bash
-   npm install -g @anthropic-ai/claude-code
-   claude        # 처음 실행 시 구독 계정으로 로그인
-   ```
-   > 터미널에 `ANTHROPIC_API_KEY`가 설정되어 있어도 이 앱은 그걸 쓰지 않고 구독 로그인을 사용해요.
-3. 이 저장소 받기
-   ```bash
-   git clone https://github.com/yundini/Yundini-project.git
-   cd Yundini-project
-   ```
+Mac은 프로그램이 실제로 돌아가는 **본체**, 아이패드는 **리모컨**이에요. Mac에서는 아래만 하면 돼요.
 
-## 실행
+1. 이 저장소를 Mac에 받기 (GitHub에서 **Code → Download ZIP** 후 압축 풀기, 또는 `git clone`)
+2. 폴더 안의 **`start.command` 더블클릭**
+   - 처음 열 때 "확인되지 않은 개발자" 경고가 나오면: 파일을 **우클릭 → 열기**
 
-Finder에서 `start.command`를 더블클릭하거나, 터미널에서:
+`start.command`가 알아서 해주는 것:
 
-```bash
-npm install
-npm start
-```
+| 단계 | 내용 |
+| --- | --- |
+| Node.js | 없으면 이 폴더 안(`.runtime/`)에 받아서 사용 (Mac 전체에 설치하지 않음, 체크섬 검증) |
+| Claude Code | 없으면 설치, 로그인이 안 되어 있으면 로그인 화면을 띄움 → 구독 계정으로 로그인 후 `/exit` |
+| 패키지 | 처음 한 번 설치 |
+| Playwright | 앱이 켜질 때 Chromium까지 자동 설치 |
+| 잠자기 방지 | 실행 중에는 Mac이 잠들지 않음 (터미널 창을 닫으면 해제) |
 
-터미널에 **접속 주소**와 **6자리 접속 코드**가 나와요. Playwright와 Chromium이 없으면 이때 자동으로 설치돼요.
+준비가 끝나면 터미널에 **접속 주소**와 **6자리 접속 코드**가 나와요.
 
 ```
  접속 주소: http://localhost:3000
             http://192.168.0.12:3000
  접속 코드: 123456
 ```
+
+> 이미 Node.js가 설치되어 있다면 그걸 그대로 써요. 터미널에서 `npm install && npm start`로 직접 실행해도 돼요.
+> `ANTHROPIC_API_KEY`가 설정되어 있어도 이 앱은 그걸 쓰지 않고 구독 로그인을 사용해요.
 
 ## 아이패드에서 쓰기
 
@@ -57,7 +54,7 @@ npm start
    로그인이 끝나면 **"로그인 완료 확인"**. 세션은 Mac의 `data/naver-profile`에 저장돼 다음부터는 로그인할 필요가 없어요.
 
 > 밖에서도 쓰고 싶다면 Mac과 아이패드에 [Tailscale](https://tailscale.com)을 설치하면 같은 와이파이가 아니어도 접속할 수 있어요.
-> Mac이 잠자기 상태가 되면 접속이 끊기니, 쓰는 동안은 잠자기를 꺼 두세요.
+> `start.command`로 실행하면 실행 중에는 Mac이 잠자기에 들어가지 않아요. 덮개를 닫으면 잠들 수 있으니 열어 두세요.
 
 ## 설정 (환경변수, 선택)
 
