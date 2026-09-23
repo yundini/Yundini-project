@@ -49,16 +49,27 @@ async function waitForCount(frame, selector, min, timeout) {
   throw new Error('업로드가 끝나지 않았어요.');
 }
 
-// 커서를 본문 맨 끝으로 옮긴다.
+// 사람이 클릭하듯 요소의 화면 위치를 직접 클릭한다.
+// 에디터의 선택 표시 레이어(se-selection)가 글자 위를 덮고 있어도 클릭이 전달된다.
+async function clickAt(page, locator, where = 'center') {
+  await locator.scrollIntoViewIfNeeded().catch(() => {});
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('에디터에서 클릭할 위치를 찾지 못했어요.');
+  const x = where === 'end' ? box.x + box.width - 3 : box.x + box.width / 2;
+  const y = where === 'end' ? box.y + box.height - 6 : box.y + box.height / 2;
+  await page.mouse.click(x, y);
+}
+
+// 커서를 본문 맨 끝으로 옮긴다. (사진/동영상을 넣은 뒤에만 필요)
 async function moveCursorToEnd(page, frame) {
   const last = frame.locator('.se-components-wrap .se-component').last();
   const isText = await last.evaluate((el) => el.classList.contains('se-text')).catch(() => false);
   if (isText) {
-    await last.locator('.se-text-paragraph').last().click();
+    await clickAt(page, last.locator('.se-text-paragraph').last(), 'end');
     await page.keyboard.press('End');
   } else {
     // 사진/동영상 뒤에 새 문단을 만든다
-    await last.click();
+    await clickAt(page, last);
     await page.keyboard.press('Enter');
   }
   await pause(300);
@@ -178,12 +189,13 @@ export async function publishToNaver(post, { mode = 'publish' } = {}, log) {
       await dismissPopups(frame);
 
       log('제목 입력 중...');
-      await frame.locator('.se-documentTitle .se-text-paragraph, .se-title-text').first().click();
+      await clickAt(page, frame.locator('.se-documentTitle .se-text-paragraph, .se-title-text').first());
       await page.keyboard.type(article.title, { delay: 25 });
 
-      await frame.locator('.se-component.se-text .se-text-paragraph').first().click();
+      await clickAt(page, frame.locator('.se-component.se-text .se-text-paragraph').first());
       for (const [i, seg] of segments.entries()) {
-        if (i > 0) await moveCursorToEnd(page, frame);
+        // 글을 붙여넣은 뒤에는 커서가 이미 끝에 있으므로, 사진/동영상 다음에만 커서를 옮긴다
+        if (i > 0 && segments[i - 1].kind !== 'text') await moveCursorToEnd(page, frame);
         if (seg.kind === 'text') {
           log(`본문 입력 중... (${i + 1}/${segments.length})`);
           await pasteSegment(page, frame, seg, log);
@@ -227,7 +239,8 @@ export async function publishToNaver(post, { mode = 'publish' } = {}, log) {
       const shot = `publish-error-${Date.now()}.png`;
       await page.screenshot({ path: path.join(LOG_DIR, shot), fullPage: false }).catch(() => {});
       await page.close().catch(() => {});
-      err.message += ` (오류 화면: /api/logs/${shot})`;
+      const reason = err.message.replace(/\u001b\[[0-9;]*m/g, '').split('\n')[0];
+      err.message = `${reason} (오류 화면: /api/logs/${shot})`;
       throw err;
     }
   });
