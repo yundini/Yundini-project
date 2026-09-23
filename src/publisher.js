@@ -209,7 +209,7 @@ async function waitForPostUrl(page, frame, timeout = 60000) {
 // mode: 'publish' = 바로 발행, 'draft' = 임시저장 (네이버 앱에서 확인 후 직접 발행)
 export async function publishToNaver(post, { mode = 'publish' } = {}, log) {
   const article = post.article;
-  const segments = toSegments(article.blocks, post.media);
+  const segments = toSegments(article.blocks, post.media, article.tags);
 
   return withNaverBrowser('발행', async (ctx) => {
     const page = await ctx.newPage();

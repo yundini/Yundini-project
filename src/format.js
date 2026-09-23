@@ -17,6 +17,8 @@ export function blockToHtml(block) {
       return (block.items || []).map((it) => `<p><span style="font-size:16px">✔ ${inline(it)}</span></p>`).join('') + blank;
     case 'divider':
       return `<p style="text-align:center"><span style="color:#bbbbbb">· · ·</span></p>${blank}`;
+    case 'tags':
+      return `<p><span style="font-size:15px;color:#2e7d5b">${esc(block.text)}</span></p>`;
     case 'caption':
       return `<p style="text-align:center"><span style="font-size:13px;color:#888888">${esc(block.text)}</span></p>${blank}`;
     default:
@@ -31,7 +33,11 @@ export function blockToText(block) {
 }
 
 // 연속된 텍스트 블록은 한 번에 붙여넣고, 사진/동영상에서 끊는다.
-export function toSegments(blocks, media) {
+export const hashtagLine = (tags = []) =>
+  tags.map((t) => `#${String(t).replace(/^#/, '').replace(/\s+/g, '')}`).filter((t) => t.length > 1).join(' ');
+
+// tags를 주면 본문 맨 마지막 줄에 해시태그로 붙인다 (미리보기와 같은 모양).
+export function toSegments(blocks, media, tags = []) {
   const byId = new Map(media.map((m) => [m.id, m]));
   const segments = [];
   let text = [];
@@ -51,6 +57,8 @@ export function toSegments(blocks, media) {
       text.push(block);
     }
   }
+  const line = hashtagLine(tags);
+  if (line) text.push({ type: 'tags', text: line });
   flush();
   return segments;
 }
