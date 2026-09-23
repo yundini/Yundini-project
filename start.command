@@ -38,15 +38,24 @@ echo "✔ Claude Code $("$CLAUDE" --version 2>/dev/null | head -n 1)"
 
 # ---- 3. Claude 로그인 확인 (구독 요금제 사용을 위해 API 키는 쓰지 않음) ----
 unset ANTHROPIC_API_KEY
-if ! "$CLAUDE" -p "ok" --output-format json 2>/dev/null | grep -q '"subtype":"success"'; then
+# 응답이 성공이고 오류 표시(is_error)가 없어야 로그인된 것으로 본다
+claude_ok() {
+  "$CLAUDE" -p "ok" --output-format json 2>/dev/null | node -e '
+    let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+      try { const j = JSON.parse(s); process.exit(j.subtype === "success" && !j.is_error ? 0 : 1); }
+      catch { process.exit(1); }
+    });'
+}
+if ! claude_ok; then
   echo ""
   echo "▶ Claude 로그인이 필요해요."
-  echo "  곧 Claude Code가 열리면 로그인 방식에서 구독 계정(Claude account with subscription)을 고르고,"
+  echo "  곧 Claude Code가 열려요. 로그인 화면이 안 나오면 /login 을 입력하세요."
+  echo "  로그인 방식에서 구독 계정(Claude account with subscription)을 고르고,"
   echo "  브라우저에서 평소 쓰는 Claude 계정으로 로그인하세요."
   echo "  로그인이 끝나면 /exit 를 입력해서 나오면 대시보드가 이어서 실행돼요."
   read -r -p "  준비되면 엔터를 누르세요."
   "$CLAUDE" || true
-  "$CLAUDE" -p "ok" --output-format json 2>/dev/null | grep -q '"subtype":"success"' ||
+  claude_ok ||
     fail "Claude 로그인이 확인되지 않았어요. start.command를 다시 실행해 주세요."
 fi
 echo "✔ Claude 로그인 확인"
