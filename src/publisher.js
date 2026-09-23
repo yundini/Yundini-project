@@ -51,32 +51,51 @@ async function waitForCount(frame, selector, min, timeout) {
 
 // 사람이 클릭하듯 요소의 화면 위치를 직접 클릭한다.
 // 에디터의 선택 표시 레이어(se-selection)가 글자 위를 덮고 있어도 클릭이 전달된다.
+// where: 'center' | 'end'(마지막 줄 끝) | 'bottom'(아래쪽 가장자리) | 'below'(요소 바로 아래 빈 곳)
 async function clickAt(page, locator, where = 'center') {
-  await locator.scrollIntoViewIfNeeded().catch(() => {});
+  // 세로로 긴 사진도 클릭할 부분이 화면 안에 들어오도록 스크롤한다
+  await locator.evaluate((el, w) => el.scrollIntoView({ block: w === 'center' ? 'center' : 'end' }), where).catch(() => {});
+  await pause(200);
   const box = await locator.boundingBox();
   if (!box) throw new Error('에디터에서 클릭할 위치를 찾지 못했어요.');
-  const x = where === 'end' ? box.x + box.width - 3 : box.x + box.width / 2;
-  const y = where === 'end' ? box.y + box.height - 6 : box.y + box.height / 2;
-  await page.mouse.click(x, y);
+  const vp = page.viewportSize() || { width: 1200, height: 860 };
+  let x = box.x + box.width / 2;
+  let y = box.y + box.height / 2;
+  if (where === 'end') [x, y] = [box.x + box.width - 3, box.y + box.height - 6];
+  if (where === 'bottom') y = box.y + box.height - 15;
+  if (where === 'below') y = box.y + box.height + 25;
+  const clamp = (v, max) => Math.min(Math.max(v, 5), max - 5);
+  await page.mouse.click(clamp(x, vp.width), clamp(y, vp.height));
 }
 
-// 커서를 본문 맨 끝으로 옮긴다. (사진/동영상을 넣은 뒤에만 필요)
-async function moveCursorToEnd(page, frame) {
-  const last = frame.locator('.se-components-wrap .se-component').last();
-  const isText = await last.evaluate((el) => el.classList.contains('se-text')).catch(() => false);
-  if (isText) {
-    await clickAt(page, last.locator('.se-text-paragraph').last(), 'end');
+const lastComponent = (frame) => frame.locator('.se-components-wrap .se-component').last();
+const isTextComponent = (loc) => loc.evaluate((el) => el.classList.contains('se-text')).catch(() => false);
+
+// 사진/동영상 다음 줄로 커서를 옮기는 방법들. 본문이 실제로 들어갈 때까지 차례로 시도한다.
+const CURSOR_STRATEGIES = [
+  async (page, frame) => {
+    const last = lastComponent(frame);
+    if (await isTextComponent(last)) {
+      await clickAt(page, last.locator('.se-text-paragraph').last(), 'end');
+      await page.keyboard.press('End');
+    } else {
+      await clickAt(page, last, 'bottom'); // 사진 선택
+      await page.keyboard.press('Enter'); // 사진 아래에 새 줄
+    }
+  },
+  async (page, frame) => {
+    await clickAt(page, lastComponent(frame), 'bottom');
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('End');
-  } else {
-    // 사진/동영상 뒤에 새 문단을 만든다
-    await clickAt(page, last);
-    await page.keyboard.press('Enter');
-  }
-  await pause(300);
-}
+  },
+  async (page, frame) => {
+    await clickAt(page, lastComponent(frame), 'below'); // 사진 아래 빈 곳 클릭
+  },
+];
 
 // 본문을 입력한다. 에디터가 실제 입력으로 인식하도록 진짜 키 입력만 쓴다.
 // 1) 실제 클립보드에 서식 HTML을 넣고 command+V  2) 안 되면 키보드로 한 줄씩 타이핑
+// 성공하면 true, 글자가 전혀 들어가지 않았으면 false.
 async function pasteSegment(page, frame, segment, log) {
   const before = await contentLength(frame);
 
@@ -91,7 +110,7 @@ async function pasteSegment(page, frame, segment, log) {
     }, segment);
     await page.keyboard.press(PASTE_KEY);
     await pause(1200);
-    if ((await contentLength(frame)) > before) return;
+    if ((await contentLength(frame)) > before) return true;
     log('붙여넣기가 적용되지 않아 키보드 입력으로 바꿔요.');
   } catch (e) {
     log(`클립보드를 쓸 수 없어 키보드 입력으로 바꿔요. (${e.message.split('\n')[0]})`);
@@ -104,7 +123,22 @@ async function pasteSegment(page, frame, segment, log) {
   }
   await page.keyboard.press('Enter');
   await pause(500);
-  if ((await contentLength(frame)) <= before) throw new Error('본문 글자를 에디터에 입력하지 못했어요.');
+  return (await contentLength(frame)) > before;
+}
+
+// 본문 한 덩어리를 넣는다. 사진/동영상 바로 뒤라면 커서 옮기는 방법을 바꿔 가며 다시 시도한다.
+async function insertTextSegment(page, frame, segment, afterMedia, log) {
+  if (!afterMedia) {
+    if (await pasteSegment(page, frame, segment, log)) return;
+    throw new Error('본문 글자를 에디터에 입력하지 못했어요.');
+  }
+  for (const [n, moveCursor] of CURSOR_STRATEGIES.entries()) {
+    if (n > 0) log(`커서 위치를 다른 방법으로 다시 잡아요. (${n + 1}/${CURSOR_STRATEGIES.length})`);
+    await moveCursor(page, frame);
+    await pause(400);
+    if (await pasteSegment(page, frame, segment, log)) return;
+  }
+  throw new Error('사진 아래로 커서를 옮기지 못해 본문을 입력하지 못했어요.');
 }
 
 async function uploadImage(page, frame, media) {
@@ -194,11 +228,12 @@ export async function publishToNaver(post, { mode = 'publish' } = {}, log) {
 
       await clickAt(page, frame.locator('.se-component.se-text .se-text-paragraph').first());
       for (const [i, seg] of segments.entries()) {
-        // 글을 붙여넣은 뒤에는 커서가 이미 끝에 있으므로, 사진/동영상 다음에만 커서를 옮긴다
-        if (i > 0 && segments[i - 1].kind !== 'text') await moveCursorToEnd(page, frame);
+        // 글을 붙여넣은 뒤에는 커서가 이미 끝에 있고, 사진은 선택된 사진 다음에 들어간다.
+        // 사진/동영상 바로 뒤에 글을 넣을 때만 커서를 옮긴다.
+        const afterMedia = i > 0 && segments[i - 1].kind !== 'text';
         if (seg.kind === 'text') {
           log(`본문 입력 중... (${i + 1}/${segments.length})`);
-          await pasteSegment(page, frame, seg, log);
+          await insertTextSegment(page, frame, seg, afterMedia, log);
         } else if (seg.kind === 'image') {
           log(`사진 업로드 중: ${seg.media.originalName}`);
           await uploadImage(page, frame, seg.media);
