@@ -160,22 +160,26 @@ async function shrinkImage(media, log) {
 }
 
 // 사진이 에디터에 보인 뒤에도 네이버는 뒤에서 업로드를 계속한다.
-// 업로드 중에는 입력이 막히므로 "업로드 중" 표시가 사라지고 사진 주소가 서버 주소로 바뀔 때까지 기다린다.
-async function waitUploadsDone(frame, log, timeout = 3 * 60 * 1000) {
+// 업로드 중인 사진은 아직 내 컴퓨터 주소(blob:)로 보이므로, 서버 주소로 바뀔 때까지 기다린다.
+// 화면 밖 사진은 네이버가 임시 그림(data:)으로 바꿔 두므로 업로드 중으로 보지 않는다.
+// onlyNew: markExisting() 이후 새로 생긴 사진만 확인한다.
+const markExisting = (frame) =>
+  frame.evaluate(() => document.querySelectorAll('.se-component').forEach((el) => (el.dataset.bpSeen = '1'))).catch(() => {});
+
+async function waitUploadsDone(frame, log, { onlyNew = false, timeout = 90 * 1000 } = {}) {
   const until = Date.now() + timeout;
   let told = false;
   let calm = 0;
   while (Date.now() < until) {
     const busy = await frame
-      .evaluate(() => {
-        const uploading = /업로드\s*중/.test(document.body.innerText);
-        // 업로드 중인 사진은 아직 내 컴퓨터 주소(blob:/data:)로 보인다.
-        // (화면 밖 사진은 늦게 불러오므로 '불러오기 완료' 여부는 보지 않는다)
-        const pending = [...document.querySelectorAll('.se-component.se-image img, .se-component.se-video img')].some(
-          (img) => /^(blob|data):/.test(img.getAttribute('src') || ''),
+      .evaluate((onlyNew) => {
+        const scope = onlyNew ? '.se-component:not([data-bp-seen])' : '.se-component';
+        const pending = [...document.querySelectorAll(`${scope} img`)].some((img) =>
+          (img.getAttribute('src') || '').startsWith('blob:'),
         );
-        return uploading || pending;
-      })
+        const uploading = /업로드\s*중/.test(document.body.innerText);
+        return pending || uploading;
+      }, onlyNew)
       .catch(() => false);
     if (!busy) {
       if (++calm >= 2) return; // 두 번 연속 조용하면 끝난 것으로 본다
@@ -193,6 +197,7 @@ async function uploadImage(page, frame, media, log) {
   const selector = '.se-component.se-image';
   const before = await componentCount(frame, selector);
   const file = await shrinkImage(media, log);
+  await markExisting(frame);
   try {
     const [chooser] = await Promise.all([
       page.waitForEvent('filechooser', { timeout: 15000 }),
@@ -200,7 +205,7 @@ async function uploadImage(page, frame, media, log) {
     ]);
     await chooser.setFiles(file);
     await waitForCount(frame, selector, before + 1, 120000);
-    await waitUploadsDone(frame, log);
+    await waitUploadsDone(frame, log, { onlyNew: true });
     await pause(800);
   } finally {
     if (file !== media.path) fs.rmSync(file, { force: true });
