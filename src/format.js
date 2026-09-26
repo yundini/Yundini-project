@@ -3,24 +3,30 @@
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-const blank = '<p><br></p>';
+// 네이버 에디터는 서식을 적지 않으면 윗줄(예: 회색 가운데 캡션)의 서식을 이어 쓴다.
+// 그래서 모든 줄에 정렬·색·굵기·크기를 빠짐없이 적는다.
+const BLACK = '#000000';
+const GREEN = '#2e7d5b';
+const line = (html, { align = 'left', size = 16, color = BLACK, bold = false } = {}) =>
+  `<p style="text-align:${align}"><span style="font-size:${size}px;color:${color};font-weight:${bold ? 'bold' : 'normal'}">${html}</span></p>`;
+const blank = line('<br>');
 
 export function blockToHtml(block) {
   switch (block.type) {
     case 'heading':
-      return `${blank}<p><span style="font-size:24px;color:#1a1a1a"><b>${esc(block.text)}</b></span></p>${blank}`;
+      return `${blank}${line(esc(block.text), { size: 24, bold: true })}${blank}`;
     case 'paragraph':
-      return `<p><span style="font-size:16px">${inline(block.text)}</span></p>${blank}`;
+      return `${line(inline(block.text))}${blank}`;
     case 'quote':
-      return `<p style="text-align:center"><span style="font-size:19px;color:#2e7d5b"><b>“ ${inline(block.text)} ”</b></span></p>${blank}`;
+      return `${line(`“ ${inline(block.text)} ”`, { align: 'center', size: 19, color: GREEN, bold: true })}${blank}`;
     case 'list':
-      return (block.items || []).map((it) => `<p><span style="font-size:16px">✔ ${inline(it)}</span></p>`).join('') + blank;
+      return (block.items || []).map((it) => line(`✔ ${inline(it)}`)).join('') + blank;
     case 'divider':
-      return `<p style="text-align:center"><span style="color:#bbbbbb">· · ·</span></p>${blank}`;
+      return `${line('· · ·', { align: 'center', color: '#bbbbbb' })}${blank}`;
     case 'tags':
-      return `<p><span style="font-size:15px;color:#2e7d5b">${esc(block.text)}</span></p>`;
+      return line(esc(block.text), { size: 15, color: GREEN });
     case 'caption':
-      return `<p style="text-align:center"><span style="font-size:13px;color:#888888">${esc(block.text)}</span></p>${blank}`;
+      return `${line(esc(block.text), { align: 'center', size: 13, color: '#888888' })}${blank}`;
     default:
       return '';
   }
