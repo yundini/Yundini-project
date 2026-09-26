@@ -113,7 +113,7 @@ app.post('/api/login/logout', wrap(async (req, res) => res.json(await browser.lo
 // ---- 사진/동영상 업로드 ----
 const upload = multer({
   dest: path.join(UPLOAD_DIR, 'tmp'),
-  limits: { fileSize: 1024 * 1024 * 1024, files: 30 }, // 파일당 최대 1GB
+  limits: { fileSize: 2 * 1024 * 1024 * 1024, files: 60 }, // 파일당 최대 2GB, 한 번에 60개
 });
 
 function attachFiles(post, files, notes) {
@@ -280,6 +280,22 @@ app.get('/api/jobs/:id', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: '작업을 찾을 수 없어요.' });
   res.json(job);
+});
+
+// ---- 오류를 알아보기 쉬운 한국어 메시지(JSON)로 돌려준다 ----
+const UPLOAD_ERRORS = {
+  LIMIT_FILE_COUNT: '사진·동영상은 한 번에 60개까지 올릴 수 있어요. 나눠서 올려 주세요. (글을 만든 뒤 사진 칸의 "추가"로 더 넣을 수 있어요)',
+  LIMIT_FILE_SIZE: '파일 하나가 너무 커요 (최대 2GB). 동영상은 길이를 줄여서 올려 주세요.',
+};
+app.use((err, req, res, next) => {
+  console.error('[error]', err);
+  if (res.headersSent) return next(err);
+  const message =
+    UPLOAD_ERRORS[err.code] ||
+    (err.type === 'entity.too.large' ? '보내는 내용이 너무 커요.' : null) ||
+    (err.code === 'ENOSPC' ? 'Mac 저장 공간이 부족해요. 필요 없는 파일을 지우고 다시 시도해 주세요.' : null) ||
+    `처리 중 오류가 났어요: ${err.message}`;
+  res.status(400).json({ error: message });
 });
 
 // ---- 시작 ----

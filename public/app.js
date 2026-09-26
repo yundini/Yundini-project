@@ -14,17 +14,22 @@ const STATUS_LABEL = {
 };
 
 async function api(path, { method = 'GET', body, form } = {}) {
-  const res = await fetch(path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: form || (body ? JSON.stringify(body) : undefined),
-  });
+  let res;
+  try {
+    res = await fetch(path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: form || (body ? JSON.stringify(body) : undefined),
+    });
+  } catch {
+    throw new Error('Mac의 앱에 연결하지 못했어요. Mac 터미널에서 앱이 켜져 있는지, 같은 와이파이인지 확인해 주세요.');
+  }
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
   if (res.status === 401 && data?.error === 'auth') {
     renderAuth();
     throw new Error('접속 코드가 필요해요.');
   }
-  if (!res.ok) throw new Error(data?.error || `요청 실패 (${res.status})`);
+  if (!res.ok) throw new Error(data?.error || `요청 실패 (${res.status}). 잠시 후 다시 시도해 주세요.`);
   return data;
 }
 
