@@ -14,6 +14,7 @@ import * as browser from './browser.js';
 import { collectSources } from './research.js';
 import { suggestTopics, writeArticle } from './writer.js';
 import { publishToNaver } from './publisher.js';
+import { applyImageEdits, editsFromReview } from './imageEdit.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -185,9 +186,24 @@ app.delete('/api/posts/:id/media/:mediaId', wrap(async (req, res) => {
   const post = requirePost(req.params.id);
   const target = post.media.find((m) => m.id === req.params.mediaId);
   if (target) fs.rmSync(target.path, { force: true });
+  if (target?.editedPath) fs.rmSync(target.editedPath, { force: true });
   const patch = { media: post.media.filter((m) => m.id !== req.params.mediaId) };
   if (post.article) patch.article = { ...post.article, blocks: post.article.blocks.filter((b) => b.mediaId !== req.params.mediaId) };
   res.json(store.updatePost(post.id, patch));
+}));
+
+// 사진 하나를 원본으로 되돌리거나, 가로로 자르거나, 돌린다.
+app.post('/api/posts/:id/media/:mediaId/edit', wrap(async (req, res) => {
+  const post = requirePost(req.params.id);
+  const m = post.media.find((x) => x.id === req.params.mediaId);
+  if (!m || m.kind !== 'image') throw new Error('사진을 찾을 수 없어요.');
+  if (runningJobFor(post.id)) throw new Error('작업이 진행 중이에요. 끝난 뒤에 다시 시도해 주세요.');
+  const { landscape = false, focusY = m.edit?.focusY ?? 0.5, rotate = 0 } = req.body || {};
+  const media = await applyImageEdits(post, { [m.id]: { landscape, focusY, rotate } });
+  const updated = store.updatePost(post.id, { media });
+  const after = updated.media.find((x) => x.id === m.id);
+  if (landscape && !after.edit?.landscape && !rotate) throw new Error('이미 가로 사진이라 자를 필요가 없어요.');
+  res.json(updated);
 }));
 
 app.get('/media/:postId/:file', (req, res) => {
@@ -236,6 +252,11 @@ app.post('/api/posts/:id/write', wrap(async (req, res) => {
     log(feedback ? 'AI가 수정 요청을 반영해 다시 쓰는 중...' : 'AI가 사진을 검토하고 글을 쓰는 중... (1~3분)');
     const article = await writeArticle(store.getPost(post.id), { feedback });
     store.updatePost(post.id, { article, status: 'written' });
+    const edits = editsFromReview(article.mediaReview);
+    if (Object.keys(edits).length) {
+      log('AI 판단에 따라 사진을 가로로 자르거나 바로 세우는 중...');
+      store.updatePost(post.id, { media: await applyImageEdits(store.getPost(post.id), edits, log) });
+    }
     log('글 작성 완료! 미리보기에서 확인해 주세요.');
   });
   res.json({ jobId: job.id });

@@ -45,6 +45,11 @@ ${lines.join('\n')}
 사진은 Read 도구로 파일을 직접 열어서 보고,
 1) 글 주제와 어울리는지 판단하고 (흐리거나, 개인정보가 보이거나, 주제와 무관하면 제외)
 2) 어울리는 사진은 내용에 맞는 위치에 media 블록으로 배치해.
+3) 블로그 주인은 가로 사진을 선호해. 세로 사진은 가로(4:3)로 잘라 쓸지 판단해서 mediaReview에 적어:
+   - "orientation": "landscape" = 가로로 자르기, "keep" = 그대로 (이미 가로 사진이면 "keep")
+   - 세로 사진은 기본적으로 "landscape". 단, 잘랐을 때 사람 전신·제품 전체처럼 꼭 필요한 부분이 잘리면 "keep"
+   - "focusY": 가로로 자를 때 남길 부분의 세로 중심 (0 = 맨 위, 0.5 = 가운데, 1 = 맨 아래). 주인공(사람 얼굴, 제품, 간판 등)이 가운데 오도록
+   - "rotate": 사진이 옆으로 눕거나 뒤집혀 보이면 바로 서도록 시계 방향으로 돌릴 각도 (90, 180, 270). 정상이면 0
 동영상은 블로그 주인이 올린 것이므로 제외하지 말고 적절한 위치에 배치해.`;
 }
 
@@ -84,7 +89,7 @@ ${previous}
 ${BLOCK_SCHEMA}
 
 다른 설명 없이 아래 JSON 형식으로만 답해:
-{"title":"...","tags":["..."],"mediaReview":[{"id":"m1","use":true,"reason":"판단 이유"}],"blocks":[...]}`;
+{"title":"...","tags":["..."],"mediaReview":[{"id":"m1","use":true,"reason":"판단 이유","orientation":"landscape","focusY":0.4,"rotate":0}],"blocks":[...]}`;
 
   const json = await askClaudeJson(prompt, {
     allowedTools: post.media.some((m) => m.kind === 'image') ? ['Read'] : [],

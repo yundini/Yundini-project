@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { LOG_DIR } from './paths.js';
 import { withNaverBrowser } from './browser.js';
 import { toSegments } from './format.js';
+import { mediaPath } from './imageEdit.js';
 
 const WRITE_URL = 'https://blog.naver.com/GoBlogWrite.naver';
 const PASTE_KEY = process.platform === 'darwin' ? 'Meta+V' : 'Control+V';
@@ -148,15 +149,16 @@ async function insertTextSegment(page, frame, segment, afterMedia, log) {
 // 네이버도 어차피 줄여서 저장하므로 화질 차이는 거의 없고, 느린 Mac에서도 업로드가 빨라진다.
 const MAX_SIDE = 2000;
 async function shrinkImage(media, log) {
-  if (process.platform !== 'darwin') return media.path;
+  const src = mediaPath(media);
+  if (process.platform !== 'darwin') return src;
   const out = path.join(LOG_DIR, `upload-${media.id}-${Date.now()}.jpg`);
   try {
-    await promisify(execFile)('sips', ['-Z', String(MAX_SIDE), '-s', 'format', 'jpeg', '-s', 'formatOptions', '85', media.path, '--out', out]);
+    await promisify(execFile)('sips', ['-Z', String(MAX_SIDE), '-s', 'format', 'jpeg', '-s', 'formatOptions', '85', src, '--out', out]);
     if (fs.existsSync(out) && fs.statSync(out).size > 0) return out;
   } catch (e) {
     log(`사진 크기 줄이기를 건너뛰어요. (${e.message.split('\n')[0]})`);
   }
-  return media.path;
+  return src;
 }
 
 // 사진이 에디터에 보인 뒤에도 네이버는 뒤에서 업로드를 계속한다.
@@ -208,7 +210,7 @@ async function uploadImage(page, frame, media, log) {
     await waitUploadsDone(frame, log, { onlyNew: true });
     await pause(800);
   } finally {
-    if (file !== media.path) fs.rmSync(file, { force: true });
+    if (file !== mediaPath(media)) fs.rmSync(file, { force: true });
   }
 }
 

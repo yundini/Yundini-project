@@ -329,7 +329,7 @@ async function renderHome() {
 
 // ---------------- 글 상세 ----------------
 function mediaTag(post, m, attrs = '') {
-  const src = `/media/${post.id}/${m.file}`;
+  const src = `/media/${post.id}/${m.editedFile || m.file}`; // 가로로 자른 편집본이 있으면 그것을 보여준다
   return m.kind === 'video' ? `<video src="${src}" controls playsinline ${attrs}></video>` : `<img src="${src}" alt="" ${attrs}>`;
 }
 
@@ -395,7 +395,14 @@ async function renderPost(id, jobFromUrl) {
             ${mediaTag(post, m, 'preload="metadata"')}
             <div class="body">${esc(m.note || m.originalName)}
               ${reviewById[m.id] ? `<br><span class="hint">${reviewById[m.id].use ? '✅ 사용' : '⛔ 제외'}: ${esc(reviewById[m.id].reason)}</span>` : ''}
-              <br><button class="ghost danger" data-del-media="${m.id}" style="min-height:32px;padding:4px 10px;margin-top:4px">빼기</button>
+              ${m.edit ? `<br><span class="hint">✂️ ${[m.edit.rotate && '바로 세움', m.edit.landscape && '가로로 자름'].filter(Boolean).join(' · ')}</span>` : ''}
+              <div class="tile-actions">
+                ${m.kind === 'image' ? (m.edit
+                  ? `<button class="ghost" data-edit-media="${m.id}" data-mode="original">원본으로</button>`
+                  : `<button class="ghost" data-edit-media="${m.id}" data-mode="landscape">가로로 자르기</button>`) : ''}
+                ${m.kind === 'image' ? `<button class="ghost" data-edit-media="${m.id}" data-mode="rotate">돌리기 ↻</button>` : ''}
+                <button class="ghost danger" data-del-media="${m.id}">빼기</button>
+              </div>
             </div>
           </div>`).join('')}
       </div>
@@ -472,6 +479,21 @@ async function renderPost(id, jobFromUrl) {
     if (!confirm('이 글과 첨부한 사진·동영상을 삭제할까요?')) return;
     await api(`/api/posts/${id}`, { method: 'DELETE' }).then(() => (location.hash = '#/')).catch((e) => alert(e.message));
   };
+
+  document.querySelectorAll('[data-edit-media]').forEach((b) => {
+    b.onclick = async () => {
+      const m = post.media.find((x) => x.id === b.dataset.editMedia);
+      const rotateNow = m.edit?.rotate || 0;
+      const body =
+        b.dataset.mode === 'original' ? { landscape: false, rotate: 0 }
+        : b.dataset.mode === 'landscape' ? { landscape: true, rotate: rotateNow }
+        : { landscape: !!m.edit?.landscape, rotate: (rotateNow + 90) % 360 };
+      b.disabled = true;
+      b.textContent = '처리 중...';
+      await api(`/api/posts/${id}/media/${m.id}/edit`, { method: 'POST', body }).catch((e) => alert(e.message));
+      renderPost(id);
+    };
+  });
 
   document.querySelectorAll('[data-del-media]').forEach((b) => {
     b.onclick = async () => {
