@@ -1,4 +1,7 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { LOG_DIR } from './paths.js';
 import { withNaverBrowser } from './browser.js';
 import { toSegments } from './format.js';
@@ -141,16 +144,65 @@ async function insertTextSegment(page, frame, segment, afterMedia, log) {
   throw new Error('사진 아래로 커서를 옮기지 못해 본문을 입력하지 못했어요.');
 }
 
-async function uploadImage(page, frame, media) {
+// 업로드 전에 사진을 적당한 크기로 줄인다 (Mac 기본 도구 sips 사용).
+// 네이버도 어차피 줄여서 저장하므로 화질 차이는 거의 없고, 느린 Mac에서도 업로드가 빨라진다.
+const MAX_SIDE = 2000;
+async function shrinkImage(media, log) {
+  if (process.platform !== 'darwin') return media.path;
+  const out = path.join(LOG_DIR, `upload-${media.id}-${Date.now()}.jpg`);
+  try {
+    await promisify(execFile)('sips', ['-Z', String(MAX_SIDE), '-s', 'format', 'jpeg', '-s', 'formatOptions', '85', media.path, '--out', out]);
+    if (fs.existsSync(out) && fs.statSync(out).size > 0) return out;
+  } catch (e) {
+    log(`사진 크기 줄이기를 건너뛰어요. (${e.message.split('\n')[0]})`);
+  }
+  return media.path;
+}
+
+// 사진이 에디터에 보인 뒤에도 네이버는 뒤에서 업로드를 계속한다.
+// 업로드 중에는 입력이 막히므로 "업로드 중" 표시가 사라지고 사진 주소가 서버 주소로 바뀔 때까지 기다린다.
+async function waitUploadsDone(frame, log, timeout = 3 * 60 * 1000) {
+  const until = Date.now() + timeout;
+  let told = false;
+  let calm = 0;
+  while (Date.now() < until) {
+    const busy = await frame
+      .evaluate(() => {
+        const uploading = /업로드\s*중/.test(document.body.innerText);
+        const pending = [...document.querySelectorAll('.se-component.se-image img, .se-component.se-video img')].some(
+          (img) => !img.getAttribute('src') || /^(blob|data):/.test(img.src) || !img.complete,
+        );
+        return uploading || pending;
+      })
+      .catch(() => false);
+    if (!busy) {
+      if (++calm >= 2) return; // 두 번 연속 조용하면 끝난 것으로 본다
+    } else {
+      calm = 0;
+      if (!told) log('네이버에 사진이 올라가는 중이라 끝날 때까지 기다려요...');
+      told = true;
+    }
+    await pause(1000);
+  }
+  log('사진 업로드 완료를 확인하지 못했지만 계속 진행해요.');
+}
+
+async function uploadImage(page, frame, media, log) {
   const selector = '.se-component.se-image';
   const before = await componentCount(frame, selector);
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser', { timeout: 15000 }),
-    frame.locator('button.se-image-toolbar-button, button[data-name="image"]').first().click(),
-  ]);
-  await chooser.setFiles(media.path);
-  await waitForCount(frame, selector, before + 1, 90000);
-  await pause(1000);
+  const file = await shrinkImage(media, log);
+  try {
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 15000 }),
+      frame.locator('button.se-image-toolbar-button, button[data-name="image"]').first().click(),
+    ]);
+    await chooser.setFiles(file);
+    await waitForCount(frame, selector, before + 1, 120000);
+    await waitUploadsDone(frame, log);
+    await pause(800);
+  } finally {
+    if (file !== media.path) fs.rmSync(file, { force: true });
+  }
 }
 
 async function uploadVideo(page, frame, media, title) {
@@ -177,6 +229,7 @@ async function uploadVideo(page, frame, media, title) {
   }
   await done.click();
   await waitForCount(frame, selector, before + 1, 60000);
+  await waitUploadsDone(frame, () => {});
   await pause(1000);
 }
 
@@ -236,7 +289,7 @@ export async function publishToNaver(post, { mode = 'publish' } = {}, log) {
           await insertTextSegment(page, frame, seg, afterMedia, log);
         } else if (seg.kind === 'image') {
           log(`사진 업로드 중: ${seg.media.originalName}`);
-          await uploadImage(page, frame, seg.media);
+          await uploadImage(page, frame, seg.media, log);
         } else if (seg.kind === 'video') {
           log(`동영상 업로드 중: ${seg.media.originalName} (길면 몇 분 걸려요)`);
           await uploadVideo(page, frame, seg.media, article.title);
@@ -246,6 +299,8 @@ export async function publishToNaver(post, { mode = 'publish' } = {}, log) {
       const shot = `publish-result-${Date.now()}.png`;
       await page.screenshot({ path: path.join(LOG_DIR, shot) }).catch(() => {});
       log(`입력 결과 화면: /api/logs/${shot}`);
+
+      await waitUploadsDone(frame, log);
 
       if (mode === 'draft') {
         log('임시저장 중...');
