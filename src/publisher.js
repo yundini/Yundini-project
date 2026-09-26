@@ -169,8 +169,10 @@ async function waitUploadsDone(frame, log, timeout = 3 * 60 * 1000) {
     const busy = await frame
       .evaluate(() => {
         const uploading = /업로드\s*중/.test(document.body.innerText);
+        // 업로드 중인 사진은 아직 내 컴퓨터 주소(blob:/data:)로 보인다.
+        // (화면 밖 사진은 늦게 불러오므로 '불러오기 완료' 여부는 보지 않는다)
         const pending = [...document.querySelectorAll('.se-component.se-image img, .se-component.se-video img')].some(
-          (img) => !img.getAttribute('src') || /^(blob|data):/.test(img.src) || !img.complete,
+          (img) => /^(blob|data):/.test(img.getAttribute('src') || ''),
         );
         return uploading || pending;
       })
