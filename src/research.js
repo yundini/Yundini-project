@@ -63,7 +63,56 @@ async function readBlog(page, url) {
   });
 }
 
+const cleanKeywords = (list, interest) => {
+  const seen = new Set([interest.replace(/\s+/g, '')]);
+  const out = [];
+  for (const k of list) {
+    const word = clean(String(k || ''));
+    const key = word.replace(/\s+/g, '');
+    if (word.length < 2 || word.length > 30 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(word);
+  }
+  return out;
+};
+
+// 네이버 검색창 자동완성 = 사람들이 실제로 많이 치는 검색어
+async function autocomplete(page, interest) {
+  const url = `https://ac.search.naver.com/nx/ac?q=${encodeURIComponent(interest)}&con=1&frm=nv&ans=2&r_format=json&r_enc=UTF-8&q_enc=UTF-8&st=100`;
+  const res = await page.request.get(url, { headers: { Referer: 'https://www.naver.com/' }, timeout: 15000 });
+  const json = await res.json();
+  return (json.items || []).flat(1).map((item) => (Array.isArray(item) ? item[0] : item)).filter((k) => typeof k === 'string');
+}
+
+// 통합검색 결과의 연관검색어
+async function relatedSearches(page, interest) {
+  await page.goto(`https://search.naver.com/search.naver?query=${encodeURIComponent(interest)}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(1000);
+  return page.$$eval('[class*="related_srch"] a, [class*="lst_related"] a', (as) =>
+    as.map((a) => (a.querySelector('.tit') || a).innerText.trim()),
+  );
+}
+
+// 검색 유입용 키워드 재료(자동완성·연관검색어)를 모은다. 실패해도 글쓰기는 계속한다.
+async function collectKeywords(page, interest, log) {
+  const keywords = { autocomplete: [], related: [] };
+  try {
+    keywords.autocomplete = cleanKeywords(await autocomplete(page, interest), interest).slice(0, 10);
+  } catch {
+    log('자동완성 검색어를 가져오지 못했어요(건너뜀).');
+  }
+  try {
+    keywords.related = cleanKeywords(await relatedSearches(page, interest), interest).slice(0, 15);
+  } catch {
+    log('연관검색어를 가져오지 못했어요(건너뜀).');
+  }
+  const found = [...keywords.autocomplete, ...keywords.related];
+  if (found.length) log(`검색 키워드 ${found.length}개 수집: ${found.slice(0, 6).join(', ')}${found.length > 6 ? ' ...' : ''}`);
+  return keywords;
+}
+
 // 관심분야 키워드로 네이버 뉴스(최근 1주)와 블로그(최근 1개월, 관련도순)를 모은다.
+// 함께 사람들이 실제로 검색하는 키워드(자동완성·연관검색어)도 모은다.
 export async function collectSources(interest, log) {
   const { chromium } = await playwright();
   const browser = await chromium.launch({ headless: true, ...launchExtras() });
@@ -71,8 +120,12 @@ export async function collectSources(interest, log) {
   const page = await context.newPage();
   const q = encodeURIComponent(interest);
   const sources = [];
+  let keywords = { autocomplete: [], related: [] };
 
   try {
+    log(`"${interest}" 관련 검색 키워드 찾는 중...`);
+    keywords = await collectKeywords(page, interest, log);
+
     log(`네이버 뉴스에서 "${interest}" 검색 중...`);
     const newsLinks = await collectLinks(
       page,
@@ -112,5 +165,5 @@ export async function collectSources(interest, log) {
   }
 
   if (!sources.length) throw new Error('수집된 자료가 없어요. 키워드를 바꿔서 다시 시도해 주세요.');
-  return sources;
+  return { sources, keywords };
 }

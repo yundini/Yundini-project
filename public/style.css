@@ -140,3 +140,12 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 .tile-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .tile-actions button { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+
+.seo { margin-top: 20px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); }
+.seo h3 { margin: 0 0 8px; font-size: 17px; }
+.seo p { margin: 6px 0; }
+.seo .kw { display: inline-block; padding: 2px 8px; margin: 2px 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 14px; }
+.seo .kw.main { font-weight: 700; }
+.seo .checks { list-style: none; padding: 0; margin: 8px 0; font-size: 14px; }
+.seo .checks li { margin: 4px 0; }
+.seo textarea { width: 100%; box-sizing: border-box; font-size: 14px; }

@@ -6,18 +6,41 @@ const sourceDigest = (sources, bodyChars) =>
     .map((s) => `[${s.id}] (${s.type === 'news' ? '뉴스' : '블로그'}) ${s.title}\n${s.body.slice(0, bodyChars)}`)
     .join('\n\n---\n\n');
 
+// 네이버에서 모은 실제 검색어(자동완성·연관검색어)와 상위 블로그 제목
+function keywordSection(post) {
+  const { autocomplete = [], related = [] } = post.keywords || {};
+  const blogTitles = post.sources.filter((s) => s.type === 'blog').map((s) => `- ${s.title}`);
+  const lines = [];
+  if (autocomplete.length) lines.push(`네이버 자동완성 검색어: ${autocomplete.join(', ')}`);
+  if (related.length) lines.push(`네이버 연관검색어: ${related.join(', ')}`);
+  if (blogTitles.length) lines.push(`검색 상위 블로그 글 제목:\n${blogTitles.join('\n')}`);
+  return lines.length
+    ? lines.join('\n')
+    : '수집된 검색어 자료가 없어. 관심분야와 글감을 보고 사람들이 실제로 검색창에 칠 만한 말을 직접 추려줘.';
+}
+
 // 1단계: 수집한 뉴스·블로그에서 블로그 글감을 3~5개 추천받는다.
 export async function suggestTopics(post) {
   const prompt = `너는 네이버 블로그 콘텐츠 기획자야.
 관심분야: ${post.interest}
 ${post.memo ? `블로그 주인의 메모: ${post.memo}\n` : ''}${post.media.length ? `블로그 주인이 직접 찍은 사진/동영상이 ${post.media.length}개 있어. 파일 설명: ${post.media.map((m) => m.note || m.originalName).join(', ')}\n` : ''}
-아래는 최근 뉴스와 인기 블로그 글이야. 지금 사람들이 관심을 가질 만한 블로그 글감 3~5개를 추천해줘.
+이 블로그는 네이버 **검색 유입**이 대부분이야. 아래 최근 뉴스와 인기 블로그 글, 실제 검색어를 보고
+사람들이 지금 검색창에 많이 칠 만한 블로그 글감 3~5개를 추천해줘.
 블로그 주인의 메모와 사진이 있다면 그와 잘 어울리는 글감을 우선해줘.
 
+[실제 검색어]
+${keywordSection(post)}
+
+[자료]
 ${sourceDigest(post.sources, 700)}
 
+글감마다 검색 키워드를 정해줘:
+- keyword(메인 키워드): 검색창에 실제로 칠 법한 2~4단어 검색어 하나. 너무 넓은 한 단어(예: "여행")보다 구체적인 검색어(예: "제주 가을 여행 코스")가 좋아.
+- subKeywords(세부 키워드): 같이 검색될 만한 롱테일 검색어 3~5개 (예: "제주 가을 여행 옷차림", "제주 억새 명소")
+- 위 실제 검색어 중 글감과 맞는 것을 우선 활용해.
+
 다른 설명 없이 아래 JSON 형식으로만 답해:
-{"topics":[{"title":"글 제목 후보","angle":"어떤 관점/내용으로 쓸지 한두 문장","why":"왜 지금 이 글감이 좋은지","sourceIds":["n1","b2"]}]}`;
+{"topics":[{"title":"글 제목 후보(메인 키워드를 앞쪽에)","keyword":"메인 키워드","subKeywords":["세부 키워드"],"angle":"어떤 관점/내용으로 쓸지 한두 문장","why":"왜 지금 이 글감이 좋은지(검색 수요 포함)","sourceIds":["n1","b2"]}]}`;
   const json = await askClaudeJson(prompt);
   if (!Array.isArray(json.topics) || !json.topics.length) throw new Error('AI가 글감을 추천하지 못했어요.');
   return json.topics;
@@ -63,13 +86,24 @@ export async function writeArticle(post, { feedback } = {}) {
     ? `\n이전에 쓴 글(JSON):\n${JSON.stringify({ title: post.article.title, blocks: post.article.blocks })}\n\n블로그 주인의 수정 요청: ${feedback}\n위 요청을 반영해서 글을 다시 써줘.\n`
     : '';
 
+  const keywordPlan = topic.keyword
+    ? `메인 키워드: ${topic.keyword}\n세부 키워드: ${(topic.subKeywords || []).join(', ') || '(직접 골라줘)'}`
+    : '메인 키워드와 세부 키워드는 아직 없어. 아래 실제 검색어와 글감을 보고 네가 정해줘.';
+
   const prompt = `너는 네이버 블로그를 운영하는 친근하고 믿음직한 블로거야.
 아래 글감과 참고 자료를 바탕으로 **완전히 새로운** 블로그 글을 써줘.
+이 블로그는 네이버 **검색 유입**이 대부분이라, 검색에 잘 걸리도록 단어를 고르는 게 중요해.
 
 [글감]
 제목 후보: ${topic.title}
 방향: ${topic.angle}
 관심분야: ${post.interest}
+
+[검색 키워드]
+${keywordPlan}
+
+[실제 검색어 자료]
+${keywordSection(post)}
 ${post.memo ? `블로그 주인의 메모(경험/의견, 적극 반영): ${post.memo}\n` : ''}
 [참고 자료] — 사실 확인용이야. 문장을 그대로 베끼지 말고, 여러 자료를 종합해 내 말로 다시 써.
 ${sourceDigest(refs, 2500)}
@@ -83,13 +117,24 @@ ${mediaSection(post)}
 - 구성: 도입(공감/궁금증 유발) → 소제목 3~5개로 나눈 본문 → 마무리(요약 + 한마디)
 - 가독성: 문단은 짧게, 핵심은 **굵게**, 필요하면 목록과 인용구 사용
 - 참고 자료에 없는 수치나 사실을 지어내지 마
-- 제목은 검색에 잘 걸리도록 핵심 키워드를 앞쪽에, 30자 안팎
-- 태그 5~10개 (# 없이)
+
+[검색 유입 규칙]
+- 제목: 메인 키워드를 **맨 앞쪽에** 그대로 넣고, 세부 키워드 하나를 자연스럽게 덧붙여 25~35자. 특수문자·이모지 남발 금지
+- 첫 문단(도입 2~3문장 안)에 메인 키워드를 그대로 한 번 넣기
+- 본문 전체에 메인 키워드를 띄어쓰기까지 똑같이 4~6번, 세부 키워드는 각각 1~2번. 같은 문단에 반복하지 말고 고르게, 읽을 때 어색하지 않게
+- 소제목 3~5개 중 2개 이상에 메인/세부 키워드를 넣기 (사람들이 궁금해하는 질문형도 좋아, 예: "○○ 가격은 얼마?")
+- 검색하는 사람이 바로 찾는 정보(가격, 위치, 장단점, 방법, 추천 대상 등)를 구체적인 단어로 적기. "이것", "여기"처럼 흐릿한 말보다 이름을 직접 쓰기
+- 사진 설명(caption)에도 키워드를 자연스럽게 섞기
+- 마무리 문단에 메인 키워드를 한 번 더 넣어 요약
+- 태그(해시태그) 10~15개, # 없이, 띄어쓰기 없이 붙여서:
+  메인 키워드 → 세부 키워드(롱테일) → 연관 검색어 → 지역·상황·대상 키워드 순서로.
+  "일상", "소통", "맞팔"처럼 글과 무관한 태그나 같은 말 반복은 빼
+- seo.tip: 이 글이 검색에 더 잘 걸리려면 블로그 주인이 해 볼 만한 것 한두 문장 (예: 직접 찍은 사진 추가, 가격 정보 보완)
 ${previous}
 ${BLOCK_SCHEMA}
 
 다른 설명 없이 아래 JSON 형식으로만 답해:
-{"title":"...","tags":["..."],"mediaReview":[{"id":"m1","use":true,"reason":"판단 이유","orientation":"landscape","focusY":0.4,"rotate":0}],"blocks":[...]}`;
+{"title":"...","seo":{"mainKeyword":"메인 키워드","subKeywords":["세부 키워드"],"tip":"..."},"tags":["..."],"mediaReview":[{"id":"m1","use":true,"reason":"판단 이유","orientation":"landscape","focusY":0.4,"rotate":0}],"blocks":[...]}`;
 
   const json = await askClaudeJson(prompt, {
     allowedTools: post.media.some((m) => m.kind === 'image') ? ['Read'] : [],
@@ -101,7 +146,13 @@ ${BLOCK_SCHEMA}
   }
   const mediaIds = new Set(post.media.map((m) => m.id));
   json.blocks = json.blocks.filter((b) => b.type !== 'media' || mediaIds.has(b.mediaId));
-  json.tags = (json.tags || []).map((t) => String(t).replace(/^#/, '').trim()).filter(Boolean).slice(0, 10);
+  json.tags = [...new Set((json.tags || []).map((t) => String(t).replace(/^#/, '').replace(/\s+/g, '').trim()).filter(Boolean))].slice(0, 15);
+  const seo = json.seo || {};
+  json.seo = {
+    mainKeyword: String(seo.mainKeyword || topic.keyword || '').trim(),
+    subKeywords: (Array.isArray(seo.subKeywords) ? seo.subKeywords : topic.subKeywords || []).map((k) => String(k).trim()).filter(Boolean),
+    tip: String(seo.tip || '').trim(),
+  };
   json.mediaReview = json.mediaReview || [];
   return json;
 }

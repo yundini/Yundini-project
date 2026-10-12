@@ -228,8 +228,8 @@ function startPostJob(post, kind, fn) {
 app.post('/api/posts/:id/research', wrap(async (req, res) => {
   const post = requirePost(req.params.id);
   const job = startPostJob(post, 'research', async (log) => {
-    const sources = await collectSources(post.interest, log);
-    store.updatePost(post.id, { sources });
+    const { sources, keywords } = await collectSources(post.interest, log);
+    store.updatePost(post.id, { sources, keywords });
     log(`자료 ${sources.length}개 수집 완료. AI가 글감을 고르는 중...`);
     const topics = await suggestTopics(store.getPost(post.id));
     store.updatePost(post.id, { topics, status: 'researched' });

@@ -358,6 +358,49 @@ function renderPreview(post) {
   return `<div class="preview"><div class="p-title">${esc(a.title)}</div>${body}<p class="tags">${(a.tags || []).map((t) => `#${esc(t)}`).join(' ')}</p></div>`;
 }
 
+// ---------------- 검색 키워드 점검 ----------------
+const squash = (s) => String(s || '').replace(/\*\*/g, '').replace(/\s+/g, '').toLowerCase();
+const countIn = (text, kw) => (kw ? squash(text).split(squash(kw)).length - 1 : 0);
+const blockText = (b) => (b.type === 'list' ? (b.items || []).join(' ') : b.type === 'media' ? b.caption || '' : b.text || '');
+
+function seoChecks(a) {
+  const kw = a.seo?.mainKeyword;
+  if (!kw) return [];
+  const blocks = a.blocks || [];
+  const firstPara = blocks.find((b) => b.type === 'paragraph');
+  const headings = blocks.filter((b) => b.type === 'heading');
+  const keyHeadings = headings.filter((b) => countIn(b.text, kw) || (a.seo.subKeywords || []).some((k) => countIn(b.text, k)));
+  const body = countIn(blocks.map(blockText).join(' '), kw);
+  const titleAt = squash(a.title).indexOf(squash(kw));
+  const tags = a.tags || [];
+  return [
+    [titleAt >= 0 && titleAt <= 6, titleAt < 0 ? '제목에 메인 키워드가 없어요' : titleAt <= 6 ? '제목 앞쪽에 메인 키워드가 있어요' : '메인 키워드를 제목 앞쪽으로 옮기면 좋아요'],
+    [!!firstPara && countIn(firstPara.text, kw) > 0, countIn(firstPara?.text, kw) ? '첫 문단에 메인 키워드가 있어요' : '첫 문단에 메인 키워드를 넣어 주세요'],
+    [body >= 3 && body <= 8, `본문에 메인 키워드 ${body}번 (3~8번이 적당)`],
+    [keyHeadings.length >= 2, `키워드가 들어간 소제목 ${keyHeadings.length}개 / ${headings.length}개 (2개 이상 권장)`],
+    [tags.length >= 10, `해시태그 ${tags.length}개 (10~15개 권장)`],
+  ];
+}
+
+function renderSeo(post) {
+  const a = post.article;
+  const seo = a.seo || {};
+  const checks = seoChecks(a);
+  const tagLine = (a.tags || []).map((t) => `#${t}`).join(' ');
+  return `
+    <div class="seo">
+      <h3>🔎 검색 키워드 점검</h3>
+      ${seo.mainKeyword ? `<p><b>메인 키워드</b> <span class="kw main">${esc(seo.mainKeyword)}</span></p>` : '<p class="hint">메인 키워드 정보가 없어요. "다시 쓰기"를 하면 함께 만들어져요.</p>'}
+      ${seo.subKeywords?.length ? `<p><b>세부 키워드</b> ${seo.subKeywords.map((k) => `<span class="kw">${esc(k)}</span>`).join(' ')}</p>` : ''}
+      ${checks.length ? `<ul class="checks">${checks.map(([ok, msg]) => `<li>${ok ? '✅' : '⚠️'} ${esc(msg)}</li>`).join('')}</ul>` : ''}
+      ${seo.tip ? `<p class="hint">💡 ${esc(seo.tip)}</p>` : ''}
+      ${tagLine ? `
+      <label for="tagCopy">추천 해시태그 (발행할 때 자동으로 들어가요 · 인스타 등에 쓸 때 복사)</label>
+      <textarea id="tagCopy" rows="3" readonly>${esc(tagLine)}</textarea>
+      <div class="row" style="margin-top:6px"><span class="spacer"></span><button class="ghost" id="copyTags">해시태그 복사</button></div>` : ''}
+    </div>`;
+}
+
 function renderEditor(post) {
   const a = post.article;
   const blocks = a.blocks.map((b, i) => {
@@ -369,6 +412,7 @@ function renderEditor(post) {
   }).join('');
   return `
     <label>제목</label><input type="text" id="editTitle" value="${esc(a.title)}" />
+    <label>메인 검색 키워드</label><input type="text" id="editKeyword" value="${esc(a.seo?.mainKeyword || '')}" placeholder="예: 제주 가을 여행 코스" />
     <label>태그 (쉼표로 구분)</label><input type="text" id="editTags" value="${esc((a.tags || []).join(', '))}" />
     <label>본문</label>${blocks}
     <div class="row"><span class="spacer"></span><button class="ghost" id="cancelEdit">취소</button><button class="primary" id="saveEdit">저장</button></div>`;
@@ -417,6 +461,8 @@ async function renderPost(id, jobFromUrl) {
     ${post.sources.length ? `
     <div class="card">
       <details><summary>수집한 자료 ${post.sources.length}개</summary>
+        ${post.keywords && [...(post.keywords.autocomplete || []), ...(post.keywords.related || [])].length ? `
+        <p class="hint">🔎 사람들이 검색하는 말: ${[...(post.keywords.autocomplete || []), ...(post.keywords.related || [])].map(esc).join(', ')}</p>` : ''}
         <ul class="sources">${post.sources.map((s) => `<li>[${s.type === 'news' ? '뉴스' : '블로그'}] <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`).join('')}</ul>
       </details>
     </div>` : ''}
@@ -426,6 +472,7 @@ async function renderPost(id, jobFromUrl) {
       ${post.topics.length ? post.topics.map((t, i) => `
         <button class="topic" data-topic="${i}">
           <strong>${post.topic?.title === t.title ? '✅ ' : ''}${esc(t.title)}</strong>
+          ${t.keyword ? `<span>🔎 <b>${esc(t.keyword)}</b>${t.subKeywords?.length ? ` · ${t.subKeywords.map(esc).join(' · ')}` : ''}</span>` : ''}
           <span>${esc(t.angle)}</span><span>💡 ${esc(t.why || '')}</span>
         </button>`).join('') : `<p class="hint">아직 글감이 없어요.</p>`}
       <div class="row"><input type="text" id="customTopic" placeholder="직접 글감 입력하기" /><button id="customBtn">이걸로 쓰기</button></div>
@@ -436,6 +483,7 @@ async function renderPost(id, jobFromUrl) {
     <div class="card">
       <div class="row" style="margin-top:0"><h2 style="margin:0">2. 미리보기</h2><span class="spacer"></span><button id="editBtn">직접 수정</button></div>
       <div id="previewArea">${renderPreview(post)}</div>
+      ${renderSeo(post)}
       <label for="feedback">AI에게 수정 요청</label>
       <div class="row" style="margin-top:0"><input type="text" id="feedback" placeholder="예: 더 짧게, 도입부를 재밌게, 가격 정보 강조" /><button id="rewriteBtn">다시 쓰기</button></div>
     </div>
@@ -536,6 +584,22 @@ async function renderPost(id, jobFromUrl) {
     runJob(api(`/api/posts/${id}/write`, { method: 'POST', body: { feedback } }));
   };
 
+  const $copy = document.getElementById('copyTags');
+  if ($copy) {
+    $copy.onclick = async () => {
+      const ta = document.getElementById('tagCopy');
+      try {
+        await navigator.clipboard.writeText(ta.value); // http 접속에서는 막혀 있을 수 있어 아래 방식으로 대신한다
+      } catch {
+        ta.focus();
+        ta.setSelectionRange(0, ta.value.length);
+        document.execCommand('copy');
+      }
+      $copy.textContent = '복사됐어요 ✓';
+      setTimeout(() => ($copy.textContent = '해시태그 복사'), 1500);
+    };
+  }
+
   document.getElementById('editBtn').onclick = () => {
     const area = document.getElementById('previewArea');
     area.innerHTML = renderEditor(post);
@@ -543,6 +607,7 @@ async function renderPost(id, jobFromUrl) {
     document.getElementById('saveEdit').onclick = async () => {
       const article = structuredClone(post.article);
       article.title = document.getElementById('editTitle').value.trim();
+      article.seo = { ...article.seo, mainKeyword: document.getElementById('editKeyword').value.trim() };
       article.tags = document.getElementById('editTags').value.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
       area.querySelectorAll('[data-block]').forEach((ta) => {
         const b = article.blocks[Number(ta.dataset.block)];
