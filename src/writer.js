@@ -117,7 +117,16 @@ ${mediaSection(post)}
 [글쓰기 규칙]
 - 분량: 공백 포함 1,500~2,500자
 - 말투: 편안한 존댓말(~해요체), 블로그 주인이 직접 경험하고 쓴 것처럼 자연스럽게
-- 구성: 도입(공감/궁금증 유발) → 소제목 3~5개로 나눈 본문 → 마무리(요약 + 한마디)
+- 구성: 후킹 멘트(hook) → 도입(공감/궁금증 유발) → 소제목 3~5개로 나눈 본문 → 마무리(요약 + 한마디)
+
+[후킹 멘트(hook) 규칙] — 글 맨 처음, 제목 바로 아래에 크게 들어가는 한두 문장이야
+- 이 블로그는 **리뷰·후기** 블로그야. 직접 써 본 사람만 말할 수 있는 **반응·변화·결과**를 앞세워서
+  "이거 진짜 좋은가 보다" 하고 바로 끌리게 써. 예: "닭고기만 먹던 아이들이 처음 먹는 오리 생육사료에 얼굴을 파묻었어요"
+- 무엇에 대한 글인지(제품·장소·주제)가 한 번에 드러나게, 가능하면 메인 키워드나 제품 이름을 자연스럽게 넣기
+- 구체적인 장면·숫자·전후 비교가 좋아 ("3일 만에", "한 봉지를 다 비웠어요"). "정말 좋아요", "강력 추천" 같은 뻔한 말만으로 끝내지 마
+- 블로그 주인의 메모·사진에 근거가 있는 내용만. 없는 경험이나 효과를 지어내지 마
+- 40~70자, 이모지·물음표 남발 금지
+- hook은 JSON의 "hook"에만 적고, blocks에는 다시 넣지 마 (앱이 자동으로 맨 위에 넣어)
 - 가독성: 문단은 짧게, 핵심은 **굵게**, 필요하면 목록과 인용구 사용
 - 사진·동영상은 설명하는 문단보다 **먼저** 배치: [소제목] → [사진] → [그 사진 설명 문단] 순서
 - 참고 자료에 없는 수치나 사실을 지어내지 마
@@ -138,7 +147,7 @@ ${previous}
 ${BLOCK_SCHEMA}
 
 다른 설명 없이 아래 JSON 형식으로만 답해:
-{"title":"...","seo":{"mainKeyword":"메인 키워드","subKeywords":["세부 키워드"],"tip":"..."},"tags":["..."],"mediaReview":[{"id":"m1","use":true,"reason":"판단 이유","orientation":"landscape","focusY":0.4,"rotate":0}],"blocks":[...]}`;
+{"title":"...","hook":"후킹 멘트","seo":{"mainKeyword":"메인 키워드","subKeywords":["세부 키워드"],"tip":"..."},"tags":["..."],"mediaReview":[{"id":"m1","use":true,"reason":"판단 이유","orientation":"landscape","focusY":0.4,"rotate":0}],"blocks":[...]}`;
 
   const json = await askClaudeJson(prompt, {
     allowedTools: post.media.some((m) => m.kind === 'image') ? ['Read'] : [],
@@ -158,5 +167,11 @@ ${BLOCK_SCHEMA}
     tip: String(seo.tip || '').trim(),
   };
   json.mediaReview = json.mediaReview || [];
+  // 후킹 멘트는 항상 글 맨 처음(제목 바로 아래)에 인용구로 넣는다
+  const hook = String(json.hook || '').trim();
+  if (hook) {
+    const same = (t) => String(t || '').replace(/[\s“”"*]/g, '') === hook.replace(/[\s“”"*]/g, '');
+    json.blocks = [{ type: 'quote', text: hook }, ...json.blocks.filter((b) => !(b.type === 'quote' && same(b.text)))];
+  }
   return json;
 }
