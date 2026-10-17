@@ -341,10 +341,28 @@ function mediaTag(post, m, attrs = '') {
 function renderPreview(post) {
   const a = post.article;
   const byId = Object.fromEntries(post.media.map((m) => [m.id, m]));
+  // 발행 때와 같이: 사진+설명 묶음 뒤 다음 사진·소제목 앞에 빈 줄 6개
+  let afterMedia = false;
+  let textAfterMedia = false;
+  const gap = (b) => {
+    if (!(afterMedia && textAfterMedia)) return '';
+    afterMedia = textAfterMedia = false;
+    return `<div class="gap" style="height:${(b.type === 'heading' ? 4 : 5) * 1.6}em"></div>`;
+  };
   const body = a.blocks.map((b) => {
+    let pre = '';
+    if (b.type === 'media' && byId[b.mediaId]) {
+      pre = gap(b);
+      afterMedia = true;
+      textAfterMedia = false;
+    } else if (b.type === 'heading') pre = gap(b);
+    else if (afterMedia) textAfterMedia = true;
+    return pre + renderBlock(b);
+  }).join('');
+  function renderBlock(b) {
     switch (b.type) {
       case 'heading': return `<h3>${esc(b.text)}</h3>`;
-      case 'paragraph': return `<p>${inline(b.text)}</p>`;
+      case 'paragraph': return `<p>${String(b.text || '').split('\n').map(inline).join('<br>')}</p>`;
       case 'quote': return `<blockquote>“ ${inline(b.text)} ”</blockquote>`;
       case 'list': return `<ul>${(b.items || []).map((i) => `<li>${inline(i)}</li>`).join('')}</ul>`;
       case 'divider': return '<hr>';
@@ -354,7 +372,7 @@ function renderPreview(post) {
       }
       default: return '';
     }
-  }).join('');
+  }
   return `<div class="preview"><div class="p-title">${esc(a.title)}</div>${body}<p class="tags">${(a.tags || []).map((t) => `#${esc(t)}`).join(' ')}</p></div>`;
 }
 

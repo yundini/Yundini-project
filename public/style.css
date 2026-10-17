@@ -106,7 +106,7 @@ details summary { cursor: pointer; font-weight: 600; }
 /* 미리보기: 네이버 블로그 글과 비슷한 모양 */
 .preview { max-width: 700px; margin: 0 auto; }
 .preview .p-title { font-size: 26px; font-weight: 700; line-height: 1.4; margin: 8px 0 18px; }
-.preview h3 { font-size: 21px; margin: 32px 0 12px; }
+.preview h3 { font-size: 21px; margin: 32px 0 12px; color: #2e7d5b; }
 .preview p { margin: 0 0 16px; }
 .preview blockquote {
   text-align: center; color: var(--accent); font-weight: 600; font-size: 18px;

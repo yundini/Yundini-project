@@ -10,13 +10,18 @@ const GREEN = '#2e7d5b';
 const line = (html, { align = 'left', size = 16, color = BLACK, bold = false } = {}) =>
   `<p style="text-align:${align}"><span style="font-size:${size}px;color:${color};font-weight:${bold ? 'bold' : 'normal'}">${html}</span></p>`;
 const blank = line('<br>');
+// 사진+설명 묶음이 끝나고 다음 사진·소제목이 시작될 때 넣는 빈 줄 (구분용)
+export const GROUP_GAP = 6;
 
 export function blockToHtml(block) {
   switch (block.type) {
     case 'heading':
-      return `${blank}${line(esc(block.text), { size: 24, bold: true })}${blank}`;
+      return `${blank}${line(esc(block.text), { size: 24, color: GREEN, bold: true })}${blank}`;
     case 'paragraph':
-      return `${line(inline(block.text))}${blank}`;
+      // 폰에서 읽기 좋게 나눈 줄(\n)을 한 줄씩 넣는다
+      return String(block.text ?? '').split('\n').filter((s) => s.trim()).map((s) => line(inline(s.trim()))).join('') + blank;
+    case 'gap':
+      return blank.repeat(block.lines || GROUP_GAP);
     case 'quote':
       return `${line(`“ ${inline(block.text)} ”`, { align: 'center', size: 19, color: GREEN, bold: true })}${blank}`;
     case 'list':
@@ -35,6 +40,7 @@ export function blockToHtml(block) {
 export function blockToText(block) {
   if (block.type === 'list') return (block.items || []).map((i) => `✔ ${i}`).join('\n') + '\n\n';
   if (block.type === 'divider') return '· · ·\n\n';
+  if (block.type === 'gap') return '\n'.repeat(block.lines || GROUP_GAP);
   return String(block.text ?? '').replace(/\*\*(.+?)\*\*/g, '$1') + '\n\n';
 }
 
@@ -52,14 +58,27 @@ export function toSegments(blocks, media, tags = []) {
     segments.push({ kind: 'text', html: text.map(blockToHtml).join(''), plain: text.map(blockToText).join('') });
     text = [];
   };
+  let afterMedia = false; // 사진 뒤에 설명 글이 이어지는 중
+  let textAfterMedia = false;
+  const gapBefore = (block) => {
+    if (!(afterMedia && textAfterMedia)) return;
+    // 앞 문단 끝에 빈 줄 하나, 소제목 앞에도 빈 줄 하나가 이미 있어 그만큼 덜 넣는다 (합쳐서 6줄)
+    text.push({ type: 'gap', lines: GROUP_GAP - (block.type === 'heading' ? 2 : 1) });
+    afterMedia = textAfterMedia = false;
+  };
   for (const block of blocks) {
     if (block.type === 'media') {
       const m = byId.get(block.mediaId);
       if (!m) continue;
+      gapBefore(block);
       flush();
+      afterMedia = true;
+      textAfterMedia = false;
       segments.push({ kind: m.kind, media: m });
       if (block.caption) text.push({ type: 'caption', text: block.caption });
     } else {
+      if (block.type === 'heading') gapBefore(block);
+      else if (afterMedia) textAfterMedia = true;
       text.push(block);
     }
   }

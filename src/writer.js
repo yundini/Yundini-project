@@ -19,6 +19,13 @@ function keywordSection(post) {
     : '수집된 검색어 자료가 없어. 관심분야와 글감을 보고 사람들이 실제로 검색창에 칠 만한 말을 직접 추려줘.';
 }
 
+// AI가 줄바꿈을 빼먹은 긴 문단은 문장 끝에서 줄을 바꿔 폰에서 읽기 좋게 만든다.
+function mobileLines(text) {
+  const t = String(text || '').trim();
+  if (t.includes('\n') || t.length <= 40) return t;
+  return t.replace(/([.!?…~])\s+(?=\S)/g, '$1\n');
+}
+
 // 1단계: 수집한 뉴스·블로그에서 블로그 글감을 3~5개 추천받는다.
 export async function suggestTopics(post) {
   const prompt = `너는 네이버 블로그 콘텐츠 기획자야.
@@ -48,7 +55,7 @@ ${sourceDigest(post.sources, 700)}
 
 const BLOCK_SCHEMA = `블록 종류:
 - {"type":"heading","text":"소제목"}
-- {"type":"paragraph","text":"문단. 강조할 부분은 **굵게** 표시 가능. 모바일에서 읽기 좋게 2~3문장마다 문단을 나눠."}
+- {"type":"paragraph","text":"문단. 강조할 부분은 **굵게** 표시 가능. 폰에서 읽기 좋게 한두 문장마다 \\n으로 줄을 바꾸고, 긴 문장은 의미가 끊기는 곳에서 한 번 더 \\n. 한 문단은 2~4줄."}
 - {"type":"quote","text":"핵심 요약이나 인상적인 한 줄"}
 - {"type":"list","items":["항목1","항목2"]}
 - {"type":"media","mediaId":"m1","caption":"사진 설명(짧게, 선택)"}
@@ -132,7 +139,10 @@ ${mediaSection(post)}
 - 블로그 주인의 메모·사진에 근거가 있는 내용만. 없는 경험이나 효과를 지어내지 마
 - 이모지·물음표 금지
 - hook은 JSON의 "hook"에만 적고, blocks에는 다시 넣지 마 (앱이 자동으로 맨 위에 넣어)
-- 가독성: 문단은 짧게, 핵심은 **굵게**, 필요하면 목록과 인용구 사용
+- 가독성: 대부분 **폰으로** 읽어. paragraph 안에서 한두 문장마다 줄바꿈(\\n)을 넣고,
+  한 줄이 25자를 넘는 긴 문장은 의미가 끊기는 곳(쉼표, "~해서", "~인데" 뒤 등)에서 한 번 더 \\n.
+  예: "처음 줬는데\\n냄새부터 한참 맡더라고요.\\n그러더니 그릇에 얼굴을 파묻었어요."
+  한 문단은 2~4줄. 핵심은 **굵게**, 필요하면 목록과 인용구 사용
 - 사진·동영상은 설명하는 문단보다 **먼저** 배치: [소제목] → [사진] → [그 사진 설명 문단] 순서
 - 참고 자료에 없는 수치나 사실을 지어내지 마
 
@@ -172,6 +182,7 @@ ${BLOCK_SCHEMA}
     tip: String(seo.tip || '').trim(),
   };
   json.mediaReview = json.mediaReview || [];
+  json.blocks = json.blocks.map((b) => (b.type === 'paragraph' ? { ...b, text: mobileLines(b.text) } : b));
   // 후킹 멘트는 항상 글 맨 처음(제목 바로 아래)에 인용구로 넣는다
   const hook = String(json.hook || '').trim();
   if (hook) {
