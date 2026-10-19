@@ -389,7 +389,7 @@ function seoChecks(a) {
   const headings = blocks.filter((b) => b.type === 'heading');
   const keyHeadings = headings.filter((b) => countIn(b.text, kw) || (a.seo.subKeywords || []).some((k) => countIn(b.text, k)));
   const body = countIn(blocks.map(blockText).join(' '), kw);
-  const titleAt = squash(a.title).indexOf(squash(kw));
+  const titleAt = squash(String(a.title || '').replace(/^\s*\[[^\]]*\]/, '')).indexOf(squash(kw)); // [서울/군자동.군자역] 같은 지역 말머리는 빼고 본다
   const tags = a.tags || [];
   return [
     [titleAt >= 0 && titleAt <= 6, titleAt < 0 ? '제목에 메인 키워드가 없어요' : titleAt <= 6 ? '제목 앞쪽에 메인 키워드가 있어요' : '메인 키워드를 제목 앞쪽으로 옮기면 좋아요'],
