@@ -111,59 +111,77 @@ async function collectKeywords(page, interest, log) {
   return keywords;
 }
 
+// "웰니스. 다이어트, 순환관리,체지방관리"처럼 여러 말을 이어 쓴 관심분야는 통째로 검색하면
+// 결과가 없을 때가 많아서, 쉼표·마침표·슬래시로 나눈 짧은 검색어도 차례로 써 본다.
+export function searchQueries(interest) {
+  const parts = interest.split(/[,.、/·|]+/).map((s) => s.trim()).filter((s) => s.length >= 2);
+  return [...new Set([interest.trim(), ...parts])].slice(0, 5);
+}
+
+const ENOUGH_SOURCES = 6;
+
+async function collectFor(page, query, sources, log) {
+  const q = encodeURIComponent(query);
+  log(`네이버 뉴스에서 "${query}" 검색 중...`);
+  const newsLinks = await collectLinks(
+    page,
+    `https://search.naver.com/search.naver?where=news&query=${q}&sort=0&nso=so:r,p:1w`,
+    /https:\/\/n\.news\.naver\.com\/(?:mnews\/)?article\/\d+\/\d+/,
+  );
+  for (const [url] of newsLinks.slice(0, MAX_NEWS)) {
+    if (sources.some((s) => s.url === url)) continue;
+    try {
+      const a = await readNews(page, url);
+      if (!a.body) continue;
+      sources.push({ id: `n${sources.length + 1}`, type: 'news', url, title: clean(a.title), meta: clean(a.press), body: clean(a.body).slice(0, MAX_CHARS) });
+      log(`뉴스 수집: ${clean(a.title).slice(0, 40)}`);
+    } catch (e) {
+      log(`뉴스 읽기 실패(건너뜀): ${url}`);
+    }
+  }
+
+  log(`네이버 블로그에서 "${query}" 인기 글 검색 중...`);
+  const blogLinks = await collectLinks(
+    page,
+    `https://search.naver.com/search.naver?ssc=tab.blog.all&query=${q}&nso=so:r,p:1m`,
+    /https?:\/\/(?:m\.)?blog\.naver\.com\/([A-Za-z0-9_-]+)\/(\d{6,})/,
+  );
+  for (const [, blogId, logNo] of blogLinks.slice(0, MAX_BLOGS)) {
+    const url = `https://m.blog.naver.com/${blogId}/${logNo}`;
+    if (sources.some((s) => s.url === url)) continue;
+    try {
+      const b = await readBlog(page, url);
+      if (!b.body) continue;
+      sources.push({ id: `b${sources.length + 1}`, type: 'blog', url, title: clean(b.title), meta: clean(b.author), body: clean(b.body).slice(0, MAX_CHARS) });
+      log(`블로그 수집: ${clean(b.title).slice(0, 40)}`);
+    } catch (e) {
+      log(`블로그 읽기 실패(건너뜀): ${url}`);
+    }
+  }
+}
+
 // 관심분야 키워드로 네이버 뉴스(최근 1주)와 블로그(최근 1개월, 관련도순)를 모은다.
 // 함께 사람들이 실제로 검색하는 키워드(자동완성·연관검색어)도 모은다.
+// 자료를 하나도 못 찾으면 빈 목록을 돌려준다 (메모만으로도 글을 쓸 수 있게).
 export async function collectSources(interest, log) {
   const { chromium } = await playwright();
   const browser = await chromium.launch({ headless: true, ...launchExtras() });
   const context = await browser.newContext({ userAgent: UA, locale: 'ko-KR', viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
-  const q = encodeURIComponent(interest);
   const sources = [];
-  let keywords = { autocomplete: [], related: [] };
+  const keywords = { autocomplete: [], related: [] };
 
   try {
-    log(`"${interest}" 관련 검색 키워드 찾는 중...`);
-    keywords = await collectKeywords(page, interest, log);
-
-    log(`네이버 뉴스에서 "${interest}" 검색 중...`);
-    const newsLinks = await collectLinks(
-      page,
-      `https://search.naver.com/search.naver?where=news&query=${q}&sort=0&nso=so:r,p:1w`,
-      /https:\/\/n\.news\.naver\.com\/(?:mnews\/)?article\/\d+\/\d+/,
-    );
-    for (const [url] of newsLinks.slice(0, MAX_NEWS)) {
-      try {
-        const a = await readNews(page, url);
-        if (!a.body) continue;
-        sources.push({ id: `n${sources.length + 1}`, type: 'news', url, title: clean(a.title), meta: clean(a.press), body: clean(a.body).slice(0, MAX_CHARS) });
-        log(`뉴스 수집: ${clean(a.title).slice(0, 40)}`);
-      } catch (e) {
-        log(`뉴스 읽기 실패(건너뜀): ${url}`);
-      }
-    }
-
-    log(`네이버 블로그에서 "${interest}" 인기 글 검색 중...`);
-    const blogLinks = await collectLinks(
-      page,
-      `https://search.naver.com/search.naver?ssc=tab.blog.all&query=${q}&nso=so:r,p:1m`,
-      /https?:\/\/(?:m\.)?blog\.naver\.com\/([A-Za-z0-9_-]+)\/(\d{6,})/,
-    );
-    for (const [, blogId, logNo] of blogLinks.slice(0, MAX_BLOGS)) {
-      const url = `https://m.blog.naver.com/${blogId}/${logNo}`;
-      try {
-        const b = await readBlog(page, url);
-        if (!b.body) continue;
-        sources.push({ id: `b${sources.length + 1}`, type: 'blog', url, title: clean(b.title), meta: clean(b.author), body: clean(b.body).slice(0, MAX_CHARS) });
-        log(`블로그 수집: ${clean(b.title).slice(0, 40)}`);
-      } catch (e) {
-        log(`블로그 읽기 실패(건너뜀): ${url}`);
-      }
+    for (const query of searchQueries(interest)) {
+      if (sources.length >= ENOUGH_SOURCES) break;
+      log(`"${query}" 관련 검색 키워드 찾는 중...`);
+      const k = await collectKeywords(page, query, log);
+      keywords.autocomplete = cleanKeywords([...keywords.autocomplete, ...k.autocomplete], interest).slice(0, 10);
+      keywords.related = cleanKeywords([...keywords.related, ...k.related], interest).slice(0, 15);
+      await collectFor(page, query, sources, log);
     }
   } finally {
     await browser.close();
   }
-
-  if (!sources.length) throw new Error('수집된 자료가 없어요. 키워드를 바꿔서 다시 시도해 주세요.');
   return { sources, keywords };
 }

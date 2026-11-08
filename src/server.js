@@ -230,7 +230,12 @@ app.post('/api/posts/:id/research', wrap(async (req, res) => {
   const job = startPostJob(post, 'research', async (log) => {
     const { sources, keywords } = await collectSources(post.interest, log);
     store.updatePost(post.id, { sources, keywords });
-    log(`자료 ${sources.length}개 수집 완료. AI가 글감을 고르는 중...`);
+    if (!sources.length && !post.memo) {
+      throw new Error('관련 자료를 찾지 못했어요. 관심분야를 "청담 다이어트"처럼 짧은 검색어로 바꾸거나, 메모에 경험을 적어 주세요.');
+    }
+    log(sources.length
+      ? `자료 ${sources.length}개 수집 완료. AI가 글감을 고르는 중...`
+      : '관련 뉴스·블로그는 못 찾았어요. 메모를 바탕으로 AI가 글감을 고르는 중...');
     const topics = await suggestTopics(store.getPost(post.id));
     store.updatePost(post.id, { topics, status: 'researched' });
     log(`글감 ${topics.length}개 추천 완료`);

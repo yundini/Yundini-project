@@ -39,12 +39,13 @@ ${post.memo ? `블로그 주인의 메모: ${post.memo}\n` : ''}${post.media.len
 ${keywordSection(post)}
 
 [자료]
-${sourceDigest(post.sources, 700)}
+${post.sources.length ? sourceDigest(post.sources, 700) : '(수집된 자료 없음 — 블로그 주인의 메모와 사진을 바탕으로 정해줘)'}
 
 글감마다 검색 키워드를 정해줘:
 - keyword(메인 키워드): 검색창에 실제로 칠 법한 2~4단어 검색어 하나. 너무 넓은 한 단어(예: "여행")보다 구체적인 검색어(예: "제주 가을 여행 코스")가 좋아.
 - subKeywords(세부 키워드): 같이 검색될 만한 롱테일 검색어 3~5개 (예: "제주 가을 여행 옷차림", "제주 억새 명소")
 - 위 실제 검색어 중 글감과 맞는 것을 우선 활용해.
+- 단, 메모에 체험단·협찬 가이드로 정해진 제목 키워드·본문 키워드가 있으면 그걸 keyword/subKeywords로 그대로 써.
 
 다른 설명 없이 아래 JSON 형식으로만 답해:
 {"topics":[{"title":"글 제목 후보(메인 키워드를 앞쪽에)","keyword":"메인 키워드","subKeywords":["세부 키워드"],"angle":"어떤 관점/내용으로 쓸지 한두 문장","why":"왜 지금 이 글감이 좋은지(검색 수요 포함)","sourceIds":["n1","b2"]}]}`;
@@ -111,6 +112,8 @@ export async function writeArticle(post, { feedback } = {}) {
 
 [검색 키워드]
 ${keywordPlan}
+※ 블로그 주인의 메모에 체험단·협찬 가이드(꼭 넣을 키워드, 제목 키워드, 반복 횟수, 글자 수, 매장 위치·이벤트 안내 등)가 있으면
+  그 조건이 아래 모든 규칙보다 **우선**이야. 지정된 제목 키워드를 메인 키워드로 쓰고, 지정된 횟수·분량을 꼭 지켜.
 
 [실제 검색어 자료]
 ${keywordSection(post)}
