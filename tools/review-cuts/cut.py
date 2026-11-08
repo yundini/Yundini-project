@@ -52,7 +52,7 @@ def main():
             sc = sharpness(c)
             if best is None or sc > best[0]: best = (sc, c, s["t"] + d)
         dst = os.path.join(out, s["name"] + ".jpg")
-        best[1].save(dst, quality=95)
+        best[1].save(dst, quality=100, subsampling=0)  # 원본 화질 유지: 최고 품질, 색 정보 줄이지 않음
         print(f"{s['name']}  {best[2]:.2f}초  {best[1].width}x{best[1].height}  선명도 {best[0]:.0f}")
 
 if __name__ == "__main__":
