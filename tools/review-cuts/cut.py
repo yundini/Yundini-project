@@ -1,6 +1,7 @@
 """영상에서 고른 장면을 블로그용 가로 사진(4:3 또는 5:4)으로 자른다.
 
-사용: python3 cut.py 장면목록.json 결과폴더 [--ratio 4:3|5:4]
+사용: python3 cut.py 장면목록.json 결과폴더 [--ratio 4:3|5:4|3:4|original]
+  original: 자르지 않고 영상 화면 그대로
 
 장면목록.json 예:
 [
@@ -29,6 +30,7 @@ def grab(video, t, path):
     return Image.open(path).convert("RGB")
 
 def crop(im, rw, rh, pos):
+    if rw == 0: return im          # original: 원본 비율 그대로
     W, H = im.size
     if W * rh >= H * rw:            # 가로로 넓은 프레임: 좌우를 자른다
         cw, ch = H * rw // rh, H
@@ -42,7 +44,7 @@ def main():
     if "--ratio" in args:
         i = args.index("--ratio"); ratio = args[i + 1]; del args[i:i + 2]
     shots_file, out = args
-    rw, rh = map(int, ratio.split(":"))
+    rw, rh = (0, 0) if ratio == "original" else map(int, ratio.split(":"))
     os.makedirs(out, exist_ok=True)
     tmp = os.path.join(tempfile.mkdtemp(), "f.png")
     for s in json.load(open(shots_file, encoding="utf-8")):
@@ -52,7 +54,7 @@ def main():
             sc = sharpness(c)
             if best is None or sc > best[0]: best = (sc, c, s["t"] + d)
         dst = os.path.join(out, s["name"] + ".jpg")
-        best[1].save(dst, quality=95)
+        best[1].save(dst, quality=100, subsampling=0)  # 원본 화질 유지: 최고 품질, 색 정보 줄이지 않음
         print(f"{s['name']}  {best[2]:.2f}초  {best[1].width}x{best[1].height}  선명도 {best[0]:.0f}")
 
 if __name__ == "__main__":

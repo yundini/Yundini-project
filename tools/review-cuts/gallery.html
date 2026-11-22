@@ -1,0 +1,89 @@
+<title>__TITLE__</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* Layout: contact sheet — one big save-all action on top, then photos in shooting order, each at its own aspect ratio */
+:root {
+  --bg: #f4f2ef; --surface: #ffffff; --fg: #241f1c; --muted: #6f6660; --line: #ddd6cf;
+  --accent: #7a4e3a; --accent-fg: #ffffff;
+  --font-display: "Gowun Batang", "Apple SD Gothic Neo", serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#171412; --surface:#211d1a; --fg:#eee8e3; --muted:#a59a92; --line:#352f2b; --accent:#d9a68c; --accent-fg:#22140d; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg:#171412; --surface:#211d1a; --fg:#eee8e3; --muted:#a59a92; --line:#352f2b; --accent:#d9a68c; --accent-fg:#22140d; color-scheme: dark; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 56px; display: grid; gap: 28px; }
+header { display: grid; gap: 12px; }
+h1 { font-family: var(--font-display); font-size: clamp(26px, 5vw, 38px); line-height: 1.2; margin: 0; text-wrap: balance; }
+.meta { color: var(--muted); margin: 0; font-variant-numeric: tabular-nums; }
+button { font: inherit; cursor: pointer; border-radius: 10px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.primary { background: var(--accent); color: var(--accent-fg); border: 0; padding: 14px 20px; font-weight: 600; font-size: 16px; justify-self: start; }
+.primary:disabled { opacity: .6; cursor: progress; }
+.status { color: var(--muted); font-size: 14px; min-height: 1.4em; margin: 0; }
+.steps { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin: 0; display: grid; gap: 4px; color: var(--muted); font-size: 14px; }
+.steps b { color: var(--fg); font-weight: 600; }
+.steps ol { margin: 0; padding-left: 20px; display: grid; gap: 2px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; align-items: start; }
+figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+figure img { width: 100%; max-width: 100%; height: auto; border-radius: 6px; background: var(--line); display: block; }
+figcaption { font-size: 14px; min-width: 0; }
+.num { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>__TITLE__ __COUNT__장</h1>
+    <p class="meta">__META__</p>
+    <button class="primary" id="save-all" type="button">__COUNT__장 한 번에 받기</button>
+    <p class="status" id="status" role="status"></p>
+    <div class="steps">
+      <b>사진 앱에 한 번에 넣는 방법</b>
+      <ol>
+        <li>위 버튼 → 확인 → 공유 창에서 <b>"파일에 저장"</b></li>
+        <li>파일 앱에서 저장한 zip을 한 번 누르면 폴더로 풀려요</li>
+        <li>폴더 열기 → <b>선택 → 모두 선택 → 공유 → "이미지 __COUNT__개 저장"</b></li>
+      </ol>
+      <span>버튼이 안 되면 사진을 길게 눌러 "사진 앱에 저장"으로 한 장씩 저장할 수 있어요.</span>
+    </div>
+  </header>
+  <main class="grid" id="grid"></main>
+</div>
+
+<script>
+const PHOTOS = __PHOTOS__;
+const grid = document.getElementById("grid");
+for (const [n, , label] of PHOTOS) {
+  const fig = document.createElement("figure");
+  const img = document.createElement("img"); img.src = "photos/p" + n + ".jpg"; img.alt = label; img.loading = "lazy";
+  const cap = document.createElement("figcaption");
+  const num = document.createElement("span"); num.className = "num"; num.textContent = n;
+  cap.append(num, document.createTextNode(label));
+  fig.append(img, cap); grid.appendChild(fig);
+}
+const statusEl = document.getElementById("status");
+const btn = document.getElementById("save-all");
+btn.addEventListener("click", async () => {
+  btn.disabled = true; statusEl.textContent = "사진을 묶는 중…";
+  try {
+    const downloads = window.claude?.use ? await window.claude.use("downloads") : null;
+    if (!downloads || !window.JSZip) { statusEl.textContent = "이 화면에서는 한 번에 받기를 쓸 수 없어요. 사진을 길게 눌러 저장해 주세요."; return; }
+    const zip = new JSZip();
+    for (const [n, slug] of PHOTOS) {
+      const res = await fetch("photos/p" + n + ".jpg");
+      if (!res.ok) throw { code: "fetch" };
+      zip.file(n + "_" + slug + ".jpg", await res.blob());
+    }
+    const blob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+    await downloads.save({ filename: "__ZIPNAME__", data: blob });
+    statusEl.textContent = "저장 창을 열었어요. \"파일에 저장\"을 눌러 주세요.";
+  } catch (e) {
+    const code = e && e.code;
+    statusEl.textContent = code === "declined" ? "저장을 취소했어요." :
+      code === "rate_limited" ? "이미 열린 저장 창이 있어요. 닫고 다시 눌러 주세요." :
+      "저장하지 못했어요. 사진을 길게 눌러 저장해 주세요.";
+  } finally { btn.disabled = false; }
+});
+</script>
